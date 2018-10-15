@@ -1,0 +1,46 @@
+{
+  "name": "react-native-png",
+  "version": "1.0.0",
+  "description": "Basic functionality for creating PNGs without HTML Canvas",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --verbose --coverage",
+    "test:update": "jest --verbose --coverage --updateSnapshot",
+    "test:watch": "jest --verbose --watch",
+    "test:coverage": "jest --verbose --coverage && open ./coverage/lcov-report/index.html",
+    "lint": "./node_modules/.bin/eslint .",
+    "lint:fix": "./node_modules/.bin/eslint --fix ."
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ],
+    "plugins": [
+      "@babel/plugin-proposal-class-properties"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richburke/react-native-png.git"
+  },
+  "keywords": [
+    "png",
+    "react",
+    "native"
+  ],
+  "author": "Rich Burke <rich.burke.dev@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/richburke/react-native-png/issues"
+  },
+  "homepage": "https://github.com/richburke/react-native-png#readme",
+  "devDependencies": {
+    "@babel/core": "^7.1.2",
+    "@babel/plugin-proposal-class-properties": "^7.1.0",
+    "@babel/preset-env": "^7.1.0",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-jest": "^23.6.0",
+    "eslint": "^5.7.0",
+    "jest": "^23.6.0"
+  }
+}
