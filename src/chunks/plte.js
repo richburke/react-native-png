@@ -5,18 +5,26 @@ const HEADER = 'PLTE';
 
 export default class PLTE extends Chunk {
   constructor(options) {
-    super();
-    
+    super(HEADER);
+
     this._maxNumberOfColors = options.maxNumberOfColors;
     this._palette = {};
     this._index = 1;
     this._isBackgroundSet = false;
 
     const chunkLength = this.calculateChunkLength();
-    super.initialize(chunkLength);
+    this.initialize(chunkLength);
   }
 
-  write() {
+  get palette() {
+    return this._palette;
+  }
+
+  set maxNumberOfColors(value) {
+    this._maxNumberOfColors = value;
+  }
+
+  update() {
     const payloadSize = this.calculatePayloadSize();
 
     this.buffer.writeUint32(payloadSize);
@@ -39,15 +47,19 @@ export default class PLTE extends Chunk {
     }
 
     const crc = this.calculateCrc32();
-    console.log('PLTE CRC', crc);
     this.buffer.writeUint32(crc);
+  }
 
-    console.log(
-      HEADER + ' buffer',
-      this.buffer.asString()
-    );
+  load(abuf) {
+    const chunkLength = this.calculateChunkLength();
+    this.initialize(chunkLength);
+    this.buffer.copyInto(abuf, chunkLength);
 
-    return this;
+    /**
+     * @todo
+     * Loop through colors and add them to palette.
+     */
+    // addColor()
   }
 
   isColorInPalette(colorData) {
@@ -131,9 +143,4 @@ export default class PLTE extends Chunk {
   calculateChunkLength() {
     return super.calculateChunkLength() + this.calculatePayloadSize();
   }
-
-  get palette() {
-    return this._palette;
-  }
 }
-

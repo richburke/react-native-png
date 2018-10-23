@@ -1,4 +1,5 @@
 import Chunk from './chunk';
+import ArrayBufferWrapper from '../util/array-buffer-wrapper';
 
 const PREFIX = '\x89PNG\r\n\x1A\n';
 
@@ -6,16 +7,20 @@ export default class Prefix extends Chunk {
   constructor() {
     super();
     const chunkLength = this.calculateChunkLength();
-    super.initialize(chunkLength);
+    this.initialize(chunkLength);
   }
 
-  write() {
+  update() {
     this.buffer.writeString8(PREFIX);
-    console.log('prefix\'s buffer', this.buffer.asString(), this.buffer.asString().length)
     return this;
   }
 
-  calculateChunkLength() {
+  verify(str) {
+    const chunkLength = this.calculateChunkLength();
+    return str.slice(0, chunkLength) === PREFIX;
+  }
+
+  calculateChunkLength = () => {
     return PREFIX.length;
   }
 }

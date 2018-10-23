@@ -1,0 +1,2 @@
+• Size!
+• Can read images with cHRM values but they cannot be created from scratch

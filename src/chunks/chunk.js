@@ -7,6 +7,11 @@ export const CHUNK_CRC32_SIZE = 4;
 
 export default class Chunk {
   _abw;
+  _header;
+
+  constructor(header) {
+    this._header = header;
+  }
 
   initialize(size) {
     this._abw = new ArrayBufferWrapper(size);
@@ -16,12 +21,48 @@ export default class Chunk {
     return this._abw;
   }
 
+  get header() {
+    return this._header;
+  }
+
+  /*
+   * Move this to ArrayBufferWrapper, or least move the logic there.
+   */
   copyInto(buffer, offset) {
-    const chunkLength = this.calculateChunkLength();
-    for (let i = 0; i < chunkLength; i++) {
-      buffer[offset + i] = this.buffer.get(i);
+    // if (chunkHdr === 'IEND') {
+    //   const chunkLength = this.calculateChunkLength();
+    //   // for (let i = 0; i < chunkLength; i++) {
+    //   //   buffer[offset + i] = this.buffer.get(i);
+    //   // }
+    // } else {
+      // const chunkLength = this.calculateChunkLength();
+      // for (let i = 0; i < chunkLength; i++) {
+      //   buffer[offset + i] = this.buffer.get(i);
+      // }
+    // }
+    if (this.header === 'pHYs') {
+      console.log('copying', this._abw.bufferView);
     }
-    return this;
+    buffer.set(this._abw.bufferView, offset);
+
+    // return this;
+  }
+
+  copyFrom(src, offset) {
+    // if (chunkHdr === 'IEND') {
+    //   const chunkLength = this.calculateChunkLength();
+    //   // for (let i = 0; i < chunkLength; i++) {
+    //   //   buffer[offset + i] = this.buffer.get(i);
+    //   // }
+    // } else {
+      // const chunkLength = this.calculateChunkLength();
+      // for (let i = 0; i < chunkLength; i++) {
+      //   buffer[offset + i] = this.buffer.get(i);
+      // }
+    // }
+    this._abw.copyFrom(src, offset);
+
+    // return this;
   }
 
   calculateChunkLength() {
@@ -31,6 +72,10 @@ export default class Chunk {
   calculateCrc32() {
     const size = this.calculateChunkLength() - CHUNK_LENGTH_SIZE - CHUNK_CRC32_SIZE;
     return calculateCrc32(this.buffer, CHUNK_LENGTH_SIZE, size);
+  }
+
+  isRequired() {
+    return false;
   }
 
   asString() {

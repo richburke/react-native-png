@@ -5,7 +5,7 @@ const HEADER = 'tRNS';
 
 export default class tRNS extends Chunk {
   constructor(options) {
-    super();
+    super(HEADER);
     
     this._colorType = options.colorType;
     this._numberOfPixels = options.numberOfPixels;
@@ -17,18 +17,28 @@ export default class tRNS extends Chunk {
 
     this._transparencies = new Uint8ClampedArray(size);
     for (let i = 0; i < size; i++) {
-      this._transparencies[i] = 0;
-      // this._transparencies[i] = DEFAULT_TRANSPARENCY;
+      // this._transparencies[i] = 0;
+      this._transparencies[i] = DEFAULT_TRANSPARENCY;
     }
 
     const chunkLength = this.calculateChunkLength();
-    super.initialize(chunkLength);
+    this.initialize(chunkLength);
   }
 
-  write() {
-    const payloadSize = this.calculatePayloadSize();
+  set colorType(value) {
+    this._colorType = value;
+  }
 
-    console.log('tRNS payload size', payloadSize);
+  set numberOfPixels(value) {
+    this._numberOfPixels = value;
+  }
+
+  set maxNumberOfColors(value) {
+    this._maxNumberOfColors = value;
+  }
+
+  update() {
+    const payloadSize = this.calculatePayloadSize();
 
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
@@ -38,16 +48,21 @@ export default class tRNS extends Chunk {
     }
 
     const crc = this.calculateCrc32();
-    console.log('tRNS CRC', crc);
     this.buffer.writeUint32(crc);
 
-    console.log(
-      HEADER + ' buffer',
-      this.buffer.bufferView,
-      this.buffer.asString()
-    );
-
     return this;
+  }
+
+  load(abuf) {
+    const chunkLength = this.calculateChunkLength();
+    this.initialize(chunkLength);
+    this.buffer.copyInto(abuf, chunkLength);
+
+    /**
+     * @todo
+     * Loop through values and add them to transparencies
+     */
+    // setTransparency()
   }
 
   setTransparency(index, alpha) {
@@ -70,4 +85,3 @@ export default class tRNS extends Chunk {
     return this._transparencies;
   }
 }
-
