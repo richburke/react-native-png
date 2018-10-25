@@ -1,4 +1,10 @@
 import Chunk, { CHUNK_LENGTH_SIZE, CHUNK_HEADER_SIZE } from './chunk';
+import { ChunkHeaderSequences } from '../util/constants';
+import {
+  indexOfSequence,
+  readUint8At,
+  readUint32At,
+} from '../util/typed-array';
 
 const HEADER = 'IHDR';
 const PAYLOAD_SIZE = 13;
@@ -35,30 +41,29 @@ export default class IDHR extends Chunk {
   load(abuf) {
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
-    /**
-     * Why copy it into the buffer, why not just extract it.
-     * It will be copied into buffer during update().
-     */
-    this.buffer.copyInto(abuf, chunkLength);
-    this._extractMetaData();
+    this._extractMetaData(abuf);
   }
 
-  _extractMetaData() {
+  verify(bufView) {
+    return indexOfSequence(bufView, ChunkHeaderSequences[HEADER]) !== -1;
+  }
+
+  _extractMetaData(abuf) {
     let offset = CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE;
 
-    const width = this.buffer.readUint32At(offset);
+    const width = readUint32At(abuf, offset);
     offset += 4;
-    const height = this.buffer.readUint32At(offset);
+    const height = readUint32At(abuf, offset);
     offset += 4;
-    const depth = this.buffer.readUint8At(offset);
+    const depth = readUint8At(abuf, offset);
     offset += 1;
-    const colorType = this.buffer.readUint8At(offset);
+    const colorType = readUint8At(abuf, offset);
     offset += 1;
-    const compression = this.buffer.readUint8At(offset);
+    const compression = readUint8At(abuf, offset);
     offset += 1;
-    const filter = this.buffer.readUint8At(offset);
+    const filter = readUint8At(abuf, offset);
     offset += 1;
-    const interlace = this.buffer.readUint8At(offset);
+    const interlace = readUint8At(abuf, offset);
 
     this._width = width;
     this._height = height;

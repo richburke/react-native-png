@@ -40,9 +40,6 @@ export default class Chunk {
       //   buffer[offset + i] = this.buffer.get(i);
       // }
     // }
-    if (this.header === 'pHYs') {
-      console.log('copying', this._abw.bufferView);
-    }
     buffer.set(this._abw.bufferView, offset);
 
     // return this;
@@ -63,6 +60,10 @@ export default class Chunk {
     this._abw.copyFrom(src, offset);
 
     // return this;
+  }
+
+  calculateDataOffset() {
+    return CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE;
   }
 
   calculateChunkLength() {

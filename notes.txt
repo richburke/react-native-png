@@ -1,0 +1,12 @@
+TODO
+• Modify constructor so that it 
+  - can accept nothing and apply reasonable defaults
+    - width and height have to be set
+  - can accept a buffer
+    - handle buffer rather than string
+    - move logic out of load
+
+RESTRICTIONS
+• Size!
+• Supports 8-bits or less per sample.
+• Can read images with cHRM values but they cannot be created from scratch

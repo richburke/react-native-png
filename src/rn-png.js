@@ -1,23 +1,24 @@
 import {
   SupportedChunks,
+  ChunkHeaderSequences,
   BitDepths,
   ColorTypes,
   DEFAULT_COMPRESSION,
   DEFAULT_FILTER,
   DEFAULT_INTERLACE,
 } from './util/constants';
-import { str2bv, bv2str } from './util/string-arraybuffer';
 import { CHUNK_LENGTH_SIZE } from './chunks/chunk';
-import ReadOnly from './chunks/read-only';
+import { indexOfSequence } from './util/typed-array';
+import { computeNumberOfPixels, computeMaxNumberOfColors } from './util/pixels';
 import Prefix from './chunks/prefix';
 import IHDR from './chunks/ihdr';
-import PLTE from './chunks/plte';
 import tRNS from './chunks/trns';
+import PLTE from './chunks/plte';
+import bKGD from './chunks/bkgd';
 import IDAT from './chunks/idat';
 import IEND from './chunks/iend';
 
 let _chunks = new WeakMap();
-let _chunkList = new WeakMap();
 let _buffer = new WeakMap();
 let _width = new WeakMap();
 let _height = new WeakMap();
@@ -26,16 +27,114 @@ let _colorType = new WeakMap();
 let _compression = new WeakMap();
 let _filter = new WeakMap();
 let _interlace = new WeakMap();
+let _zlibLib = new WeakMap();
+
+const _applyMetaData = (ctxt, metaData) => {
+  const validBitDepths = Object.values(BitDepths);
+  if (!validBitDepths.includes(metaData.depth)) {
+    throw new Error('Invalid bit depth');
+  }
+
+  const validColorTypes = Object.values(ColorTypes);
+  if (!validColorTypes.includes(metaData.colorType)) {
+    throw new Error('Invalid color type');
+  }
+
+  _width.set(ctxt, metaData.width);
+  _height.set(ctxt, metaData.height);
+  _depth.set(ctxt, metaData.depth);
+  _colorType.set(ctxt, metaData.colorType);
+  _compression.set(ctxt, metaData.compression);
+  _filter.set(ctxt, metaData.filter);
+  _interlace.set(ctxt, metaData.interlace);
+};
+
+const _initializeChunks = (ctxt, metaData) => {
+  const {
+    width,
+    height,
+    depth,
+    colorType,
+    compression,
+    filter,
+    interlace,
+  } = metaData;
+
+  const zlibLib = _zlibLib.get(ctxt);
+  const numberOfPixels = computeNumberOfPixels(width, height);
+  const maxNumberOfColors = computeMaxNumberOfColors(depth);
+
+  let chunks = {
+    prefix: new Prefix(),
+    IHDR: new IHDR({
+      width,
+      height,
+      depth,
+      colorType,
+      compression,
+      filter,
+      interlace,
+    }),
+    IDAT: new IDAT({
+      width,
+      height,
+      colorType,
+      numberOfPixels,
+      maxNumberOfColors,
+      zlibLib,
+    }),
+    IEND: new IEND(),
+  };
+
+  if (colorType === ColorTypes.INDEXED) {
+    chunks.PLTE = new PLTE({
+      maxNumberOfColors,
+    });
+  }
+
+  _chunks.set(ctxt, chunks);
+};
+
+const _updateChunks = (ctxt) => {
+  const chunks = _chunks.get(ctxt);
+  Object.keys(chunks).forEach((key) => {
+    chunks[key].update();
+  });
+  _chunks.set(ctxt, chunks);
+};
+
+const _buildBuffer = (ctxt) => {
+  const chunks = _chunks.get(ctxt);
+  const chunkTypes = Object.keys(chunks);
+  const chunkSizes = chunkTypes.reduce((acc, chunkType) => {
+    acc[chunkType] = chunks[chunkType].calculateChunkLength();
+    return acc;
+  }, {});
+  const totalSize = Object.values(chunkSizes).reduce((acc, size) => {
+    return acc + size;
+  }, 0);
+
+  const bufView = new Uint8Array(new ArrayBuffer(totalSize));
+
+  let offset = 0;
+  chunkTypes.forEach((chunkType) => {
+    chunks[chunkType].copyInto(bufView, offset);
+    offset += chunkSizes[chunkType];
+  });
+
+  console.log(chunkSizes, totalSize);
+
+  _buffer.set(ctxt, bufView);
+};
+
 
 /**
- * - Save the relevant chunks!
- * - Modify load() so it doesn't accept a string; it accepts a buffer
- *   - Needs to be able to search for patterns within buffer
  * - Modify constructor so that it works with
  *   - empty initialization
- *   - buffer & zlib
  *   - options
- * - Handle BACKGROUND chunk
+ * - Limit to 8 bit depth / sample
+ * - Move filters to their own util
+ * - Clean-up
  */
 
 export default class RnPng {
@@ -50,7 +149,7 @@ export default class RnPng {
     const interlace = options.interlace || DEFAULT_INTERLACE;
     const zlibLib = options.zlibLib || null;
 
-    this._applyMetaData({
+    _applyMetaData(this, {
       width,
       height,
       depth,
@@ -59,86 +158,10 @@ export default class RnPng {
       filter,
       interlace,
     });
-
-    const numberOfPixels = this._computeNumberOfPixels();
-    const maxNumberOfColors = this._computeMaxNumberOfColors();
-
-    _chunks.set(this, {
-      prefix: new Prefix(),
-      IHDR: new IHDR({
-        width,
-        height,
-        depth,
-        colorType,
-        compression,
-        filter,
-        interlace,
-      }),
-      iCCP: new ReadOnly('iCCP'),
-      gAMA: new ReadOnly('gAMA'),
-      cHRM: new ReadOnly('cHRM'),
-      PLTE: new PLTE({
-        maxNumberOfColors,
-      }),
-      tRNS: new tRNS({
-        colorType,
-        numberOfPixels,
-        maxNumberOfColors,
-      }),
-      pHYs: new ReadOnly('pHYs'),
-      IDAT: new IDAT({
-        width,
-        height,
-        colorType,
-        numberOfPixels,
-        maxNumberOfColors,
-        zlibLib,
-      }),
-      IEND: new IEND(),
-    });
-
+    _zlibLib.set(this, zlibLib);
     _buffer.set(this, null);
-  }
 
-  /**
-   * All these should go outside class, if possible
-   */
-  initializeEmpty() {
-
-  }
-
-  initializeOptions() {
-
-  }
-
-  initializeBuffer() {
-
-  }
-
-  initializeChunks() {
-    _chunks.set(this, {
-      prefix: new Prefix(),
-      IHDR: new IHDR({
-        width,
-        height,
-        depth,
-        colorType,
-        compression,
-        filter,
-        interlace,
-      }),
-      IDAT: new IDAT({
-        width,
-        height,
-        colorType,
-        numberOfPixels,
-        maxNumberOfColors,
-        zlibLib,
-      }),
-      IEND: new IEND(),
-    });
-
-    // If color type is 3
+    _initializeChunks(this, this.getMetaData());
   }
 
   get width() {
@@ -173,346 +196,111 @@ export default class RnPng {
     };
   }
 
-  /**
-   * @todo
-   */
   getBuffer() {
-    /**
-     * Call _update() first and then _buildBuffer()
-     */
+    _updateChunks(this);
+    _buildBuffer(this);
     return _buffer.get(this);
   }
 
-  /**
-   * Move outside of class
-   */
-  _applyMetaData(meta) {
-    const validBitDepths = Object.values(BitDepths);
-    if (!validBitDepths.includes(meta.depth)) {
-      throw new Error('Invalid bit depth');
+  from(buffer) {
+    const bufView = buffer instanceof Uint8Array
+      ? buffer
+      : Uint8Array.from(buffer);
+
+    if (!_chunks.get(this).prefix.verify(bufView)
+      || !_chunks.get(this).IHDR.verify(bufView)
+      || !_chunks.get(this).IDAT.verify(bufView)
+      || !_chunks.get(this).IEND.verify(bufView)) {
+        throw new Error('Attempting to load data that is not a PNG');
     }
 
-    const validColorTypes = Object.values(ColorTypes);
-    if (!validColorTypes.includes(meta.colorType)) {
-      throw new Error('Invalid color type');
+    // We may have created an empty PLTE chunk for the default color type.
+    let chunks = _chunks.get(this);
+    if (chunks.PLTE) {
+      delete(chunks.PLTE);
     }
+    _chunks.set(this, chunks);
 
-    _width.set(this, meta.width);
-    _height.set(this, meta.height);
-    _depth.set(this, meta.depth);
-    _colorType.set(this, meta.colorType);
-    _compression.set(this, meta.compression);
-    _filter.set(this, meta.filter);
-    _interlace.set(this, meta.interlace);
-  }
+    let chunkHeaderIndex = 0;
+    let startIndex = 0;
+    SupportedChunks.forEach((chunkHeader) => {
+      if (chunkHeader === 'IEND') {
+        return; // We don't need to load this chunk.
+      }
 
-  /**
-   * Move out of class
-   */
-  _computeNumberOfPixels() {
-    const width = _width.get(this);
-    const height = _height.get(this);
-    return width * height;
-  }
+      let tmpHeaderIndex = indexOfSequence(bufView, ChunkHeaderSequences[chunkHeader], startIndex);
+      if (-1 === tmpHeaderIndex) {
+        return;
+      }
 
-  /**
-   * Move out of class
-   */
-  _computeMaxNumberOfColors() {
-    const depth = _depth.get(this);
-    return 2 ** depth;
-  }
+      chunkHeaderIndex = tmpHeaderIndex;
+      startIndex = chunkHeaderIndex + 4;
 
-  /**
-   * Move out of class.
-   */
-  update() {
-    _chunks.get(this).prefix.update();
-
-    // Iterate through supported chunks.  If in map, update();
-    _chunks.get(this).IHDR.update();
-    // _chunks.get(this).iCCP.update();
-    // _chunks.get(this).gAMA.update();
-    // _chunks.get(this).cHRM.update();
-    _chunks.get(this).PLTE.update();
-    _chunks.get(this).tRNS.update();
-    // _chunks.get(this).pHYs.update();
-    _chunks.get(this).IDAT.update();
-
-
-
-    _chunks.get(this).IEND.update();
-
-    this.buildBuffer();
+      this._loadChunk(chunkHeader, bufView.subarray(chunkHeaderIndex - CHUNK_LENGTH_SIZE));
+    });
 
     return this;
   }
 
   /**
-   * 
    * @todo
-   * Call this instead from the constuctor when passed a string.
-   * Can I be passed an array of bytes?
-   * 
-   * - Confirm that it has a prefix
-   * - Confirm that it has a IHDR
-   * - Confirm that it has an IDAT
-   * - Confirm (backwards) that it has an IEND
+   * Move out of class
    */
-  load(str) {
-    
-    // const abuf = new ArrayBuffer(buffer.length);
-    // const ua = new Uint8Array(abuf);
-    // ua.set(buffer);
-    // ua.set(new Uint8Array(buffer));
-
-    // Get the index of header
-
-    // Read from string
-
-    // console.log('typeof', typeof buffer)
-    // console.log('typeof', typeof abuf)
-    // console.log('slice', abuf.slice(0, 8));
-    // console.log('slice', ua.subarray(0, 8));
-    // console.log('slice', ua);
-
-
-    const isPng = _chunks.get(this).prefix.verify(str);
-    if (!isPng) {
-      throw new Error('Attempting to load data that is not a PNG');
-    }
-
-    const bufView = str2bv(str);
-    let tmpBufView;
-
-    /**
-     * @todo
-     * Change this to SupportedChunks
-     */
-    const REQUIRED_CHUNKS = ['IHDR', 'PLTE', 'tRNS', 'IDAT', 'IEND'];
-    // const REQUIRED_CHUNKS = ['IHDR', 'iCCP', 'gAMA', 'cHRM', 'PLTE', 'tRNS', 'pHYs', 'IDAT', 'IEND'];
-
-// 
-    // else {
-    //   chunk = _chunks.get(this)[chunkHeader];
-    //   if (chunk.isRequired()) {
-    //     throw new Error('Missing required chunk');
-    //   }
-    // }
-
-    let chunkHeader;
-    let chunkHeaderIndex;
-
-    for (let i=0; i < SupportedChunks.length; i++) {
-      chunkHeader = REQUIRED_CHUNKS[i];
-      chunkHeaderIndex = str.indexOf(chunkHeader);
-
-      console.log('===>', chunkHeader, chunkHeaderIndex)
-      if (chunkHeaderIndex === -1) {
-        console.log(chunkHeader, ' not found in ', str);
-      }
-
-      if (chunkHeaderIndex >= CHUNK_LENGTH_SIZE) {
-        tmpBufView = bufView.subarray(chunkHeaderIndex - CHUNK_LENGTH_SIZE);
-        this._loadChunk(chunkHeader, tmpBufView);
-      }
-    }
-
-    // Confirm that all the required chunks are in there.
-    // Maybe just check for IHDR, IDAT, IEND
-
-    // required headers
-    // ancillary headers
-
- 
-
-    // let chunkHeaderIndex = _chunks.get(this).IHDR.findHeaderIndex(str);
-
-
-    // _chunks.get(this).IHDR.extract(str);
-    // const meta = _chunks.get(this).IHDR.extract(str);
-    // const meta = _chunks.get(this).IHDR.extract(buffer);
-    // console.log('meta', meta);
-    return this;
-  }
-
   _loadChunk(chunkHeader, bufView) {
+    let chunks;
     let chunk;
-    // const chunk = _chunks.get(this)[chunkHeader];
-
     switch (chunkHeader) {
       case 'IHDR':
-        _chunks.set(this) = new IHDR(/* get default metadata */);
-
         chunk = _chunks.get(this)[chunkHeader];
         chunk.load(bufView);
-        this._applyMetaData(chunk.getMetaData());
-        break;
-
-      // case 'iCCP':
-
-      //   console.log('_loadChunk', chunkHeader, bufView);
-
-      //   chunk.load(bufView);
-      //   break;
-
-      // case 'gAMA':
-
-      //   console.log('_loadChunk', chunkHeader, bufView);
-
-      //   chunk.load(bufView);
-      //   break;
-
-      // case 'cHRM':
-
-      //   console.log('_loadChunk', chunkHeader, bufView);
-
-      //   chunk.load(bufView);
-      //   break;
-
-      case 'PLTE':
-        // Add to _chunks map
-        chunk.maxNumberOfColors = this._computeMaxNumberOfColors();
-
-        // console.log('_loadChunk', chunkHeader, bufView, bv2str(bufView))
-
-        chunk.load(bufView);
+        _applyMetaData(this, chunk.getMetaData());
         break;
 
       case 'tRNS':
-        chunk.colorType = _colorType.get(this);
-        chunk.numberOfPixels = this._computeNumberOfPixels();
-        chunk.maxNumberOfColors = this._computeMaxNumberOfColors();
-
-        console.log('_loadChunk', chunkHeader, bufView, bv2str(bufView))
-
+        chunks = _chunks.get(this);
+        chunks.tRNS = new tRNS({
+          colorType: _colorType.get(this),
+          numberOfPixels: computeNumberOfPixels(_width.get(this), _height.get(this)),
+          maxNumberOfColors: computeMaxNumberOfColors(_depth.get(this)),
+        });
+        _chunks.set(this, chunks);
+        chunk = _chunks.get(this)[chunkHeader];
         chunk.load(bufView);
         break;
 
-      // case 'pHYs':
+      case 'PLTE':
+        chunks = _chunks.get(this);
+        chunks.PLTE = new PLTE({
+          maxNumberOfColors: computeMaxNumberOfColors(_depth.get(this)),
+        });
+        _chunks.set(this, chunks);
+        chunk = _chunks.get(this)[chunkHeader];
+        chunk.load(bufView);
+        break;
 
-      //   console.log('_loadChunk', chunkHeader, bufView);
-
-      //   chunk.load(bufView);
-      //   break;
+      case 'bKGD':
+        chunks = _chunks.get(this);
+        chunks.bKGD = new bKGD({
+          colorType: _colorType.get(this),
+        });
+        _chunks.set(this, chunks);
+        chunk = _chunks.get(this)[chunkHeader];
+        chunk.load(bufView);
+        break;
 
       case 'IDAT':
+        chunk = _chunks.get(this)[chunkHeader];
         chunk.width = _width.get(this);
         chunk.height = _height.get(this);
         chunk.colorType = _colorType.get(this);
-        chunk.numberOfPixels = this._computeNumberOfPixels();
-        chunk.maxNumberOfColors = this._computeMaxNumberOfColors();
+        chunk.numberOfPixels = computeNumberOfPixels(_width.get(this), _height.get(this));
+        chunk.maxNumberOfColors = computeMaxNumberOfColors(_depth.get(this));
         chunk.determineSampleSize();
-
-        // console.log('_loadChunk', chunkHeader, bufView, bv2str(bufView))
-
         chunk.load(bufView);
         break;
 
-      case 'IEND':
-        chunk.load(bufView);
-        // console.log(chunkHeader, '-->', chunk.asString());
-        break;
       default:
     }
-  }
-
-  // Return an RnPng object
-  copy() {
-
-  }
-
-  // Return an object, so we can do something like.
-  /*
-  const newRnPng = new RnPng({...oldRnPng.getConfigs(), colorType: 0});
-  */
-  // getMetaData() {
-
-  // }
-
-  /**
-   * Move out of class
-   */
-  buildBuffer() {
-    /**
-     * Size problems
-     * 361743 is too big
-     * So is 320000
-     * 
-     * Possibilities
-     * - increase max size
-     * - restrict size of image
-     * - just use strings
-     */
-
-    const prefixSize = _chunks.get(this).prefix.calculateChunkLength();
-    const ihdrSize = _chunks.get(this).IHDR.calculateChunkLength();
-    // const iCCPSize = _chunks.get(this).iCCP.calculateChunkLength();
-    // const chrmSize = _chunks.get(this).cHRM.calculateChunkLength();
-    const plteSize = _chunks.get(this).PLTE.calculateChunkLength();
-    const trnsSize = _chunks.get(this).tRNS.calculateChunkLength();
-    // const pHYsSize = _chunks.get(this).pHYs.calculateChunkLength();
-    const idatSize = _chunks.get(this).IDAT.calculateChunkLength();
-    const iendSize = _chunks.get(this).IEND.calculateChunkLength();
-
-    const size = prefixSize +
-      ihdrSize +
-      // iCCPSize +
-      // chrmSize +
-      plteSize +
-      trnsSize +
-      // pHYsSize +
-      idatSize +
-      iendSize;
-
-    //   console.log('trnsSize', trnsSize);
-    //   console.log('idatSize', idatSize);
-
-
-    const bufView = new Uint8Array(new ArrayBuffer(size));
-    // bufView.fill(0);
-    _buffer.set(this, bufView);
-
-    // for (let i = 0; i < size; i++) {
-    //   _buffer.get(this)[i] = 0;
-    // }
-
-    let offset = 0;
-
-    // const buffer = new Uint8Array(new ArrayBuffer(size+2));
-    _chunks.get(this).prefix.copyInto(_buffer.get(this), offset);
-    offset = offset + prefixSize;
-        // console.log('===', bv2str(buffer))
-
-    _chunks.get(this).IHDR.copyInto(_buffer.get(this), offset);
-    offset = offset + ihdrSize;
-    // _chunks.get(this).iCCP.copyInto(_buffer.get(this), offset);
-    // offset = offset + iCCPSize;
-    // _chunks.get(this).cHRM.copyInto(_buffer.get(this), offset);
-    // offset = offset + chrmSize;
-    _chunks.get(this).PLTE.copyInto(_buffer.get(this), offset);
-    offset = offset + plteSize;
-    _chunks.get(this).tRNS.copyInto(_buffer.get(this), offset);
-    offset = offset + trnsSize;
-    // _chunks.get(this).pHYs.copyInto(_buffer.get(this), offset);
-    // offset = offset + pHYsSize;
-    _chunks.get(this).IDAT.copyInto(_buffer.get(this), offset);
-    offset = offset + idatSize;
-    _chunks.get(this).IEND.copyInto(_buffer.get(this), offset, 'IEND');
-
-    // console.log(_chunks.get(this).cHRM.getChromaticities());
-
-    // console.log('b**', _buffer.get(this));
-
-    // console.log('OFFSETS', offset, buf.byteLength);
-    // console.log('===', _buffer.get(this).subarray(0, 20));
-    // console.log('===', new TextDecoder('utf-8').decode(_buffer.get(this)));
-
-    // _buffer.set(this, buffer);
-
-    // console.log('RnPng buffer ->', String.fromCharCode.apply(null, buffer));
-
-    return this;
   }
 
   /**
@@ -590,7 +378,7 @@ export default class RnPng {
    * @todo
    */
   swapPaletteColor(targetColor, newColor) {
-
+    return this;
   }
 
   dedupePalette() {
@@ -613,7 +401,7 @@ export default class RnPng {
    * @todo
    */
   setOpacity(index, value) {
-
+    return this;
   }
 
   applyZlibLib(lib) {

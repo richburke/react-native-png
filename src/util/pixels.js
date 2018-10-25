@@ -53,6 +53,10 @@ export const setPixel = (type, pos, data, chunks) => {
 
 };
 
+/**
+ * @todo
+ * Remove?
+ */
 export const applyPixelData = (type, data, chunks) => {
   const { PLTE, IDAT, tRNS } = chunks;
   // function(red, green, blue, alpha) {
@@ -85,6 +89,10 @@ export const applyPixelData = (type, data, chunks) => {
   //   return this.palette[color];
 };
 
+/**
+ * @todo
+ * Remove?
+ */
 export const deleteColor = (deletedColor, replacementColor, chunks) => {
   const { PLTE, IDAT, tRNS } = chunks;
 
@@ -97,3 +105,7 @@ export const deleteColor = (deletedColor, replacementColor, chunks) => {
 
     // Delete deletedColor from palette.
 };
+
+  export const computeNumberOfPixels = (width, height) => width * height;
+
+  export const computeMaxNumberOfColors = (depth) => 2 ** depth;

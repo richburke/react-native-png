@@ -7,10 +7,19 @@ export const SupportedChunks = [
   'IHDR',
   'PLTE',
   'tRNS',
+  'bKGD',
   'IDAT',
-  'bGND', // ?
   'IEND',
 ];
+
+export const ChunkHeaderSequences = {
+  IHDR: [73, 72, 68, 82],
+  PLTE: [80, 76, 84, 69],
+  tRNS: [116, 82, 78, 83],
+  bKGD: [98, 75, 71, 68],
+  IDAT: [73, 68, 65, 84],
+  IEND: [73, 69, 78, 68],
+};
 
 export const BitDepths = {
   ONE: 1,

@@ -1,7 +1,8 @@
 import Chunk from './chunk';
-import ArrayBufferWrapper from '../util/array-buffer-wrapper';
+import { indexOfSequence } from '../util/typed-array';
 
-const PREFIX = '\x89PNG\r\n\x1A\n';
+const PREFIX = '\x89PNGr\\n\x1A\n';
+const VERIFY_SEQUENCE = [137, 80, 78, 71];
 
 export default class Prefix extends Chunk {
   constructor() {
@@ -15,9 +16,8 @@ export default class Prefix extends Chunk {
     return this;
   }
 
-  verify(str) {
-    const chunkLength = this.calculateChunkLength();
-    return str.slice(0, chunkLength) === PREFIX;
+  verify(bufView) {
+    return indexOfSequence(bufView, VERIFY_SEQUENCE, 0, this.calculateChunkLength()) !== -1;
   }
 
   calculateChunkLength = () => {

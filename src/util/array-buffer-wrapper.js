@@ -1,20 +1,22 @@
+import {
+  readUint8At,
+  readUint16At,
+  readUint32At,
+  writeUint8At,
+  writeUint16At,
+  writeUint32At,
+} from './typed-array';
+/**
+ * @todo
+ * Remove, when we remove asString
+ */
 import { bv2str } from './string-arraybuffer';
 
 /**
- * Remove?
- */
-export const checkIsLittleEndian = () => {
-  var abuf = new ArrayBuffer(2);
-  var uint8Array = new Uint8Array(abuf);
-  var uint16Array = new Uint16Array(abuf);
-  uint8Array[0] = 0xAA;
-  uint8Array[1] = 0xBB;
-  return uint16Array[0] === 0xBBAA;
-};
-
-
-/**
- * Always return {offset, value}?
+ * @todo
+ * - Remove asString()
+ * - Update copyInto() & copyFrom()
+ * - Finish conversion to using libs
  */
 export default class ArrayBufferWrapper {
   _bufferView;
@@ -37,74 +39,25 @@ export default class ArrayBufferWrapper {
     return this._bufferView;
   }
 
+  readUint8At(offset) {
+    return readUint8At(this._bufferView, offset);
+  }
+
+  readUint16At(offset, lsb = false) {
+    return readUint16At(this._bufferView, offset, lsb);
+  }
+
+  readUint32At(offset, lsb = false) {
+    return readUint32At(this._bufferView, offset, lsb);
+  }
+
   writeUint8(value) {
-    this._offset = this.writeUint8At(this._offset, value);
+    this._offset = writeUint8At(this._bufferView, this._offset, value);
     return this._offset;
   }
 
   writeUint8At(offset, value) {
-    this._bufferView[offset++] = value & 255;
-    return offset;
-  }
-
-  readUint8At(offset) {
-    let newOffset = offset;
-    const value = this._bufferView[newOffset++] & 255;
-    return value;
-  }
-
-  writeUint16(value, lsb) {
-    this._offset = this.writeUint16At(this._offset, value, lsb);
-    return this._offset;
-  }
-
-  writeUint16At(offset, value, lsb = false) {
-    if (lsb) {
-      this._bufferView[offset++] = value & 255;
-      this._bufferView[offset++] = (value >> 8) & 255;
-    } else {
-      this._bufferView[offset++] = (value >> 8) & 255;
-      this._bufferView[offset++] = value & 255;
-    }
-    return offset;
-  }
-    
-  writeUint32(value, lsb) {
-    this._offset = this.writeUint32At(this._offset, value, lsb);
-    return this._offset;
-  }
-
-  writeUint32At(offset, value, lsb = false) {
-    if (lsb) {
-      this._bufferView[offset++] = value & 255;
-      this._bufferView[offset++] = (value >> 8) & 255;
-      this._bufferView[offset++] = (value >> 16) & 255;
-      this._bufferView[offset++] = (value >> 24) & 255;
-    } else {
-      this._bufferView[offset++] = (value >> 24) & 255;
-      this._bufferView[offset++] = (value >> 16) & 255;
-      this._bufferView[offset++] = (value >> 8) & 255;
-      this._bufferView[offset++] = value & 255;
-    }
-    return offset;
-  }
-
-  readUint32At(offset, lsb = false) {
-    let value;
-    let newOffset = offset;
-
-    if (lsb) {
-      value = this._bufferView[newOffset++] & 255;
-      value += this._bufferView[newOffset++] << 8
-      value += this._bufferView[newOffset++] << 16;
-      value += this._bufferView[newOffset++] << 24;
-    } else {
-      value = this._bufferView[newOffset++] << 24;
-      value += this._bufferView[newOffset++] << 16;
-      value += this._bufferView[newOffset++] << 8;
-      value += this._bufferView[newOffset++] & 255;
-    }
-    return value;
+    return writeUint8At(this._bufferView, offset, value);
   }
 
   writeString8(value, lsb) {
@@ -117,26 +70,31 @@ export default class ArrayBufferWrapper {
       value = value.split('').reverse().join('');
     }
     for (let i = 0, n = value.length; i < n; i++) {
-      offset = this.writeUint8At(offset, value.charCodeAt(i));
+      offset = writeUint8At(this._bufferView, offset, value.charCodeAt(i));
     }
     return offset;
   }
 
-  // readString8At(offset, str, length) {
-  //   for (let i = 0, n = value.length; i < n; i++) {
-  //     offset = this.writeUint8At(offset, value.charCodeAt(i));
-  //   }
+  writeUint16(value, lsb) {
+    this._offset = writeUint16At(this._bufferView, this._offset, value, lsb);
+    return this._offset;
+  }
 
-  //   var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
-  //   var bufView = new Uint16Array(buf);
-  //   for (var i=0, strLen=str.length; i < strLen; i++) {
-  //     bufView[i] = str.charCodeAt(i);
-  //   }
+  writeUint16At(offset, value, lsb = false) {
+    return writeUint16At(this._bufferView, offset, value, lsb);
+  }
 
-  //   return offset;
-  // }
+  writeUint32(value, lsb) {
+    this._offset = writeUint32At(this._bufferView, this._offset, value, lsb);
+    return this._offset;
+  }
+
+  writeUint32At(offset, value, lsb = false) {
+    return writeUint32At(this._bufferView, offset, value, lsb);
+  }
 
   /**
+   * @todo
    * Merge these into copyInto
    * src, offset, length
    */
@@ -154,27 +112,6 @@ export default class ArrayBufferWrapper {
     this._bufferView.set(src, offset);
   }
 
-  // copyFrom(sourceBuffer, offset = 0, length = -1, asString = false) {
-  //   const sourceLength = length < 0 ? sourceBuffer.length : length;
-  //   if (sourceLength + offset > this._bufferView.length) {
-  //     throw new Error('Offset and source buffer are too large for target buffer');
-  //   }
-
-  //   const fnc = asString ?
-  //     'writeString8At' :
-  //     'writeUint8At';
-
-  //   let newOffset = offset;
-  //   for (let i = offset, n = sourceLength; i < n; i += 1) {
-  //     newOffset = this[fnc](newOffset, sourceBuffer[i]);
-  //   }
-
-  //   console.log('->', sourceLength, newOffset);
-  //   console.log('->', this.asString());
-
-  //   return newOffset;
-  // }
-
   get(index) {
     return this._bufferView[index];
   }
@@ -184,6 +121,10 @@ export default class ArrayBufferWrapper {
     return this._offset;
   }
 
+  /**
+   * @todo
+   * Remove, only for testing.
+   */
   asString() {
     return bv2str(this._bufferView);
   }

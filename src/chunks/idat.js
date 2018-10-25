@@ -1,5 +1,7 @@
 import Chunk, { CHUNK_LENGTH_SIZE, CHUNK_HEADER_SIZE, CHUNK_CRC32_SIZE } from './chunk';
-import { ColorTypes } from '../util/constants';
+import { ColorTypes, ChunkHeaderSequences } from '../util/constants';
+import { indexOfSequence } from '../util/typed-array';
+import { defilter } from '../util/compress-decompress';
 
 const HEADER = 'IDAT';
 const DEFLATE_BLOCK_SIZE = 2;
@@ -62,6 +64,10 @@ export default class IDAT extends Chunk {
     this._maxNumberOfColors = value;
   }
 
+  /**
+   * @todo
+   * Move to a separate library, maybe something for all compression-decompression.
+   */
   initializeDeflateBlockHeaders() {
     const pixelAndFilterSize = this.calculatePixelAndFilterSize();
 
@@ -168,140 +174,6 @@ export default class IDAT extends Chunk {
     return this;
   }
 
-  defilterSub(rowData, bytesPerPixel) {
-    const rowSize = rowData.byteLength;
-    let x;
-    // console.log('rowSize', rowSize);
-    for (let i = bytesPerPixel; i < rowSize; i++) {
-      x = (rowData[i] + rowData[i - bytesPerPixel]) & 255;
-      rowData[i] = x;
-      // console.log('sub---', i, i - bytesPerPixel, x)
-    }
-  }
-
-  defilterUp(rowData, previousRowData, rowIndex) {
-    const rowSize = rowData.byteLength;
-    let x;
-    for (let i = 0; i < rowSize; i++) {
-      // rowData[i] = previousRowData[i] & 255;
-      // rowData[i] = (rowData[i] + previousRowData[i]) & 255;
-      x = (rowData[i] + previousRowData[i]) & 255;
-      // if (rowIndex < 10 * rowSize) {
-      //   console.log(i, rowData[i], previousRowData[i], x)
-      // }
-
-      rowData[i] = x;
-    }
-  }
-
-  /**
-   * Not tested
-   */
-  defilterAverage(rowData, bytesPerPixel, previousRowData) {
-    const rowSize = rowData.byteLength;
-    for (let i = bytesPerPixel; i < rowSize; i++) {
-      rowData[i] = Math.floor((rowData[i - bytesPerPixel] + previousRowData[i]) / 2) & 255;
-    }
-  }
-
-  computePaeth(left, above, aboveLeft) {
-    const initial = left + above - aboveLeft;
-    const deltaLeft = Math.abs(initial - left);
-    const deltaAbove = Math.abs(initial - above);
-    const deltaAboveLeft = Math.abs(initial - aboveLeft);
-
-    if (deltaLeft <= deltaAbove &&
-      deltaLeft <= deltaAboveLeft) {
-        return left;
-    }
-    if (deltaAbove <= deltaAboveLeft) {
-        return above;
-    }
-    return aboveLeft;
-  }
-
-  defilterPaeth(rowData, bytesPerPixel, previousRowData) {
-    // console.log('paeth', rowData);
-    // console.log('paeth', previousRowData);
-    // console.log('paeth--');
-    const rowSize = rowData.byteLength;
-    let previousPixelIndex;
-    let left;
-    let above;
-    let aboveLeft;
-    for (let i = 0; i < rowSize; i++) {
-      // previousPixelIndex = Math.max(i - bytesPerPixel, 0);
-      previousPixelIndex = i - bytesPerPixel;
-      if (previousPixelIndex < 0) {
-        left = 0;
-        aboveLeft = 0;
-      } else {
-        left = rowData[previousPixelIndex];
-        aboveLeft = typeof previousRowData === 'undefined' ? 0 : previousRowData[previousPixelIndex];
-      }
-      // left = rowData[previousPixelIndex];
-      above = typeof previousRowData === 'undefined' ? 0 : previousRowData[i];
-      // aboveLeft = typeof previousRowData === 'undefined' ? 0 : previousRowData[previousPixelIndex];
-      // rowData[i] = 127;
-      rowData[i] = (rowData[i] + this.computePaeth(left, above, aboveLeft)) & 255;
-    }
-  }
-
-  /**
-   * Move to a util
-   * https://www.w3.org/TR/PNG-Filters.html
-   */
-  defilter(imageAndFilterData, width, bytesPerPixel) {
-    const rowSize = width * bytesPerPixel + 1;
-    let filter;
-    let currentRow;
-    let previousRow;
-    let firstDataByteIndex;
-
-    // console.log('IMAGE DATA', imageAndFilterData);
-
-
-
-    for (let i = 0, n = imageAndFilterData.byteLength; i < n; i += rowSize) {
-      filter = imageAndFilterData[i];
-      firstDataByteIndex = i + 1;
-
-      currentRow = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
-      console.log('FILTER', filter);
-      if (filter === 0) {
-        console.log('filter is none', bytesPerPixel);
-      }
-      if (filter === 1) {
-        console.log('filter is sub', bytesPerPixel);
-        this.defilterSub(currentRow, bytesPerPixel);
-      }
-      if (filter === 2) {
-        console.log('filter is up');
-        this.defilterUp(currentRow, previousRow, i);
-      }
-      if (filter === 3) {
-        console.log('filter is average!');
-        this.defilterAverage(currentRow, bytesPerPixel, previousRow);
-      }
-      if (filter === 4) {
-        console.log('filter is paeth!');
-        this.defilterPaeth(currentRow, bytesPerPixel, previousRow);
-      }
-
-      imageAndFilterData[i] = 0;
-      previousRow = currentRow.slice(0);
-    }
-
-    let s = '\n';
-    for (let i=0, n = imageAndFilterData.byteLength; i < n; i++) {
-      s += '|' + imageAndFilterData[i];
-      if ((i + 1) % 4 === 0) {
-        s += '\n';
-      }
-    }
-    console.log(s);
-  }
-
   load(abuf) {
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
@@ -326,7 +198,7 @@ export default class IDAT extends Chunk {
      * compute bytesPerPixel
      */
     const bytesPerPixel = (this._sampleSize + 1) * 1;
-    this.defilter(this._pixelData, this._width, bytesPerPixel);
+    defilter(this._pixelData, this._width, bytesPerPixel);
     // console.log('zlibData, uncompressed', uncompressedZlibData);
 
  
@@ -406,6 +278,10 @@ export default class IDAT extends Chunk {
     // return 8 + 2 + 5 * Math.floor((i / 0xffff) + 1) + i;
   }
 
+  verify(bufView) {
+    return indexOfSequence(bufView, ChunkHeaderSequences[HEADER]) !== -1;
+  }
+
   applyZlibLib(lib) {
     if (typeof lib.inflate !== 'function' || typeof lib.deflate !== 'function') {
       throw new Error('zlib library is missing required methods');
@@ -414,6 +290,10 @@ export default class IDAT extends Chunk {
     this._zlibLib = lib;
   }
 
+  /**
+   * @todo
+   * Remove in favor of base class's
+   */
   calculateDataOffset() {
     // return CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE + DEFLATE_BLOCK_SIZE + ZLIB_HEADER_SIZE;
     return CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE;
