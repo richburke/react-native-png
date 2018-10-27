@@ -1,7 +1,7 @@
 import Chunk from './chunk';
 import { indexOfSequence } from '../util/typed-array';
 
-const PREFIX = '\x89PNGr\\n\x1A\n';
+const PREFIX = '\x89PNG\r\n\x1A\n';
 const VERIFY_SEQUENCE = [137, 80, 78, 71];
 
 export default class Prefix extends Chunk {
@@ -13,7 +13,6 @@ export default class Prefix extends Chunk {
 
   update() {
     this.buffer.writeString8(PREFIX);
-    return this;
   }
 
   verify(bufView) {

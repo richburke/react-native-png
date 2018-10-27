@@ -4,7 +4,7 @@ import { indexOfSequence } from '../util/typed-array';
 import { defilter } from '../util/compress-decompress';
 
 const HEADER = 'IDAT';
-const DEFLATE_BLOCK_SIZE = 2;
+const DEFLATE_BLOCKS_SIZE = 2;
 const ZLIB_HEADER_SIZE = 5;
 const ADLER_BASE  = 65521; // Largest prime smaller than 65536
 const ADLER_NMAX = 5552;  // Largest n such that 255n(n + 1) / 2 + (n + 1)(_BASE - 1) <= 2^32 - 1
@@ -99,12 +99,12 @@ export default class IDAT extends Chunk {
   }
 
   determineSampleSize() {
-    this._sampleSize = this._colorType === ColorTypes.GRAYSCALE ||
+    this._pixelSize = this._colorType === ColorTypes.GRAYSCALE ||
       this._colorType == ColorTypes.GRAYSCALE_AND_ALPHA ||
       this._colorType == ColorTypes.INDEXED ?
       1 :
       3;
-    return this._sampleSize;
+    return this._pixelSize;
   }
 
   determineHasAlpha() {
@@ -119,122 +119,29 @@ export default class IDAT extends Chunk {
     const chunkSize = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
 
-    console.log('data size, rnpng ->', payloadSize);
-
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-
-
-    // let deflateHeader = ((8 + (7 << 4)) << 8) | (3 << 6);
-    // deflateHeader += 31 - (deflateHeader % 31);
-    // console.log('deflateHeader, rnpng ->', deflateHeader);
-    // this.buffer.writeUint16(deflateHeader);
-
-    // The default block headers have been initialized earlier.
-    // Step over them.
-    // this.buffer.stepOffset(ZLIB_HEADER_SIZE);
- 
     const compressedPixelAndFilterData = this._zlibLib.deflate(this._pixelData);
-    // const compressedPixelAndFilterData = this._zlibLib.deflate(this._pixelData);
-
-    // console.log('compressed, again', compressedPixelAndFilterData)
-
     this.buffer.copyFrom(compressedPixelAndFilterData);
 
-    // console.log();
-
-    // this.buffer.copyFrom(this._pixelData);
-    // deflate??
-    // for (let i = 0, n = this._pixelData.length; i < n; i++) {
-    //   // if (this._pixelData[i] !== 127) {
-    //   //   console.log(i, this._pixelData[i]);
-    //   // }
-    //   this.buffer.writeUint8(this._pixelData[i]);
-    // }
-
-    // const adler32 = this.calculateAdler32();
-    // this.buffer.writeUint32At(
-    //   chunkSize - ADLER_CHECKSUM_SIZE - CHUNK_CRC32_SIZE,
-    //   (adler32[1] << 16) | adler32[0]
-    // );
-
-    // console.log(this.buffer.bufferView);
-
     const crc = this.calculateCrc32();
-    // console.log('IDAT CRC', crc);
     this.buffer.writeUint32At(chunkSize - CHUNK_CRC32_SIZE, crc);
-
-    // console.log(
-    //   HEADER + ' buffer',
-    //   this.buffer.bufferView,
-    //   this.buffer.asString()
-    // );
-
-    return this;
   }
 
   load(abuf) {
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
-    // this.initializeDeflateBlockHeaders();
-    // this.initializePixelData();
 
-    // console.log('ABUF', abuf)
-
-    // for (let x = 100; x < 122; x++) {
-    //   abuf[x] = 220;
-    // }
-
-    // const pixelAndFilterSize = this.calculatePixelAndFilterSize();
     const dataOffset = this.calculateDataOffset();
     const compressedZlibData = abuf.subarray(dataOffset);
 
-    // console.log('zlibData, compressed', compressedZlibData);
-    // const uncompressedZlibData = this._zlibLib.inflate(compressedZlibData);
     this._pixelData = this._zlibLib.inflate(compressedZlibData);
-    /*
-     * compute bytesPerSample
-     * compute bytesPerPixel
-     */
-    const bytesPerPixel = (this._sampleSize + 1) * 1;
-    defilter(this._pixelData, this._width, bytesPerPixel);
-    // console.log('zlibData, uncompressed', uncompressedZlibData);
-
- 
-
-    // console.log('zlibData, uncompressed', this._pixelData);
-
-    // this._pixelData = uncompressedZlibData.subarray(7);
-
-    // console.log('uncompress');
-
-      // .subarray(DEFLATE_BLOCK_SIZE + ZLIB_HEADER_SIZE);
-    // this._pixelData = new Uint8ClampedArray(abuf, dataOffset, pixelAndFilterSize);
-    // this._pixelData = uncompressedPixelAndFilterData.byteLength));
-    // console.log('pixelData, uncompressed ->>>', pixelAndFilterSize, this._pixelData.byteLength, this._pixelData);
-
-    // console.log('uncompressed', uncompressedPixelAndFilterData);
-
-    // this._pixelData.set(uncompressedPixelAndFilterData);
-
-    // console.log('dataOffset', dataOffset);
-    // console.log(abuf.subarray(dataOffset));
-    // console.log(String.fromCharCode.apply(null, abuf.subarray(dataOffset)));
-      // .set(abuf.subarray(dataOffset));
-
-    // console.log(this._pixelData);
-    // console.log(String.fromCharCode.apply(null, this._pixelData));
-    // console.log('pixelData, inflated', );
-
-    // console.log('PIXEL DATA', pixelAndFilterSize, this._pixelData.byteLength, abuf.byteLength);
-    // this._pixelData[1010] = 0;
-    // this._pixelData[1011] = 0;
-    // this._pixelData[1012] = 0;
+    defilter(this._pixelData, this._width, this._pixelSize);
   }
 
   _setSingleValuePixel(index, value) {
-    // if (index >= this._numberOfPixels * this._sampleSize) {
+    // if (index >= this._numberOfPixels * this._pixelSize) {
     //   console.log('problem index', index, value);
     //   throw new Error('Index out of range for pixels');
     // }
@@ -268,14 +175,7 @@ export default class IDAT extends Chunk {
   }
 
   translateXyToIndex(x, y) {
-    // var i = y * (this._width + 1) + x + 1;
-    /**
-     * Do I need to account for depth or colorType?
-     */
-    // console.log('x', x, 'y', y);
-    return y * (this._width * this._sampleSize + 1) + (x * this._sampleSize) + 1;
-    // return y * (this._width * this._sampleSize + 1) + x + 1;
-    // return 8 + 2 + 5 * Math.floor((i / 0xffff) + 1) + i;
+    return y * (this._width * this._pixelSize + 1) + (x * this._pixelSize) + 1;
   }
 
   verify(bufView) {
@@ -300,7 +200,10 @@ export default class IDAT extends Chunk {
   }
 
   calculatePixelAndFilterSize() {
-    return (this._numberOfPixels * this._sampleSize + 1) * this._height;
+    console.log('pixel and filter size', this._width, this._pixelSize, this._height);
+
+    return (this._width * this._pixelSize + 1) * this._height;
+    // return (this._numberOfPixels * this._pixelSize + 1) * this._height;
   }
 
   calculateAdler32() {
@@ -328,10 +231,10 @@ export default class IDAT extends Chunk {
 
   calculatePayloadSize() {
     const pixelAndFilterSize = this.calculatePixelAndFilterSize();
-    return 2  // Flags
+    return DEFLATE_BLOCKS_SIZE
       + pixelAndFilterSize  // Row filter and pixel data
-      + 5 * Math.floor((0xfffe + pixelAndFilterSize) / 0xffff)  // Zlib blocks
-      + 4;  // Adler checksum
+      + ZLIB_HEADER_SIZE * Math.floor((0xfffe + pixelAndFilterSize) / 0xffff)  // Zlib blocks
+      + ADLER_CHECKSUM_SIZE;
   }
 
   calculateChunkLength() {

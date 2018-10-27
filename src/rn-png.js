@@ -97,8 +97,8 @@ const _initializeChunks = (ctxt, metaData) => {
 
 const _updateChunks = (ctxt) => {
   const chunks = _chunks.get(ctxt);
-  Object.keys(chunks).forEach((key) => {
-    chunks[key].update();
+  Object.keys(chunks).forEach((chunkType) => {
+    chunks[chunkType].update();
   });
   _chunks.set(ctxt, chunks);
 };
@@ -113,7 +113,6 @@ const _buildBuffer = (ctxt) => {
   const totalSize = Object.values(chunkSizes).reduce((acc, size) => {
     return acc + size;
   }, 0);
-
   const bufView = new Uint8Array(new ArrayBuffer(totalSize));
 
   let offset = 0;
@@ -121,8 +120,6 @@ const _buildBuffer = (ctxt) => {
     chunks[chunkType].copyInto(bufView, offset);
     offset += chunkSizes[chunkType];
   });
-
-  console.log(chunkSizes, totalSize);
 
   _buffer.set(ctxt, bufView);
 };

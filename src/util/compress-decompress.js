@@ -100,7 +100,7 @@ export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
   let s = '\n';
   for (let i=0, n = imageAndFilterData.byteLength; i < n; i++) {
     s += '|' + imageAndFilterData[i];
-    if ((i + 1) % 4 === 0) {
+    if ((i + 1) % 10 === 0) {
       s += '\n';
     }
   }
