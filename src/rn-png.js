@@ -97,7 +97,13 @@ const _initializeChunks = (ctxt, metaData) => {
 
 const _updateChunks = (ctxt) => {
   const chunks = _chunks.get(ctxt);
-  Object.keys(chunks).forEach((chunkType) => {
+
+  chunks.prefix.update();
+  const existingChunkTypes = Object.keys(chunks);
+  SupportedChunks.forEach((chunkType) => {
+    if (-1 === existingChunkTypes.indexOf(chunkType)) {
+      return;
+    }
     chunks[chunkType].update();
   });
   _chunks.set(ctxt, chunks);
@@ -113,14 +119,23 @@ const _buildBuffer = (ctxt) => {
   const totalSize = Object.values(chunkSizes).reduce((acc, size) => {
     return acc + size;
   }, 0);
+
+  console.log(chunkSizes, totalSize)
+
   const bufView = new Uint8Array(new ArrayBuffer(totalSize));
 
   let offset = 0;
-  chunkTypes.forEach((chunkType) => {
+  chunks.prefix.copyInto(bufView, offset);
+  offset += chunkSizes.prefix;
+
+  const existingChunkTypes = Object.keys(chunks);
+  SupportedChunks.forEach((chunkType) => {
+    if (-1 === existingChunkTypes.indexOf(chunkType)) {
+      return;
+    }
     chunks[chunkType].copyInto(bufView, offset);
     offset += chunkSizes[chunkType];
   });
-
   _buffer.set(ctxt, bufView);
 };
 
@@ -236,6 +251,9 @@ export default class RnPng {
       this._loadChunk(chunkHeader, bufView.subarray(chunkHeaderIndex - CHUNK_LENGTH_SIZE));
     });
 
+    console.log('chunks', this.getChunksUsed());
+    console.log('metaData', this.getMetaData());
+
     return this;
   }
 
@@ -287,17 +305,21 @@ export default class RnPng {
 
       case 'IDAT':
         chunk = _chunks.get(this)[chunkHeader];
-        chunk.width = _width.get(this);
-        chunk.height = _height.get(this);
-        chunk.colorType = _colorType.get(this);
-        chunk.numberOfPixels = computeNumberOfPixels(_width.get(this), _height.get(this));
-        chunk.maxNumberOfColors = computeMaxNumberOfColors(_depth.get(this));
-        chunk.determineSampleSize();
+        chunk.applyLayoutInformation({
+          width: _width.get(this),
+          height: _height.get(this),
+          colorType: _colorType.get(this),
+          numberOfPixels: computeNumberOfPixels(_width.get(this), _height.get(this)),
+        });
         chunk.load(bufView);
         break;
 
       default:
     }
+  }
+
+  getChunksUsed() {
+    return Object.keys(_chunks.get(this)).filter((chunkHeader) => chunkHeader !== 'prefix');
   }
 
   /**

@@ -1,5 +1,6 @@
 import Chunk, { CHUNK_LENGTH_SIZE, CHUNK_HEADER_SIZE, CHUNK_CRC32_SIZE } from './chunk';
-import { ColorTypes, ChunkHeaderSequences } from '../util/constants';
+import { ChunkHeaderSequences } from '../util/constants';
+import { determinePixelColorSize, determineHasAlphaSample } from '../util/pixels';
 import { indexOfSequence } from '../util/typed-array';
 import { defilter } from '../util/compress-decompress';
 
@@ -13,18 +14,13 @@ const ADLER_CHECKSUM_SIZE = 4;
 export default class IDAT extends Chunk {
   constructor(options) {
     super(HEADER);
-    
-    this._width = options.width;
-    this._height = options.height;
-    this._colorType = options.colorType;
-    this._numberOfPixels = options.numberOfPixels;
 
-    /**
-     * Have the following return a value, not set it within method.
-     * Move to some PNG logic util.
-     */
-    this.determineSampleSize(this._colorType);
-    this.determineHasAlpha(this._colorType);
+    this.applyLayoutInformation({
+      width: options.width,
+      height: options.height,
+      colorType: options.colorType,
+      numberOfPixels: options.numberOfPixels,
+    });
 
     this._zlibLib = null;
 
@@ -60,8 +56,14 @@ export default class IDAT extends Chunk {
     this._numberOfPixels = value;
   }
 
-  set maxNumberOfColors(value) {
-    this._maxNumberOfColors = value;
+  applyLayoutInformation(info) {
+    this._width = info.width;
+    this._height = info.height;
+    this._colorType = info.colorType;
+    this._numberOfPixels = info.numberOfPixels;
+
+    this._pixelColorSize = determinePixelColorSize(this._colorType);
+    this._hasAlphaSample = determineHasAlphaSample(this._colorType);
   }
 
   /**
@@ -98,23 +100,6 @@ export default class IDAT extends Chunk {
     }
   }
 
-  determineSampleSize() {
-    this._pixelSize = this._colorType === ColorTypes.GRAYSCALE ||
-      this._colorType == ColorTypes.GRAYSCALE_AND_ALPHA ||
-      this._colorType == ColorTypes.INDEXED ?
-      1 :
-      3;
-    return this._pixelSize;
-  }
-
-  determineHasAlpha() {
-    this._hasAlpha = this._colorType == ColorTypes.GRAYSCALE_AND_ALPHA ||
-      this._colorType == ColorTypes.TRUECOLOR_AND_ALPHA ?
-      true :
-      false;
-    return this._hasAlpha;
-  }
-
   update() {
     const chunkSize = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
@@ -137,7 +122,8 @@ export default class IDAT extends Chunk {
     const compressedZlibData = abuf.subarray(dataOffset);
 
     this._pixelData = this._zlibLib.inflate(compressedZlibData);
-    defilter(this._pixelData, this._width, this._pixelSize);
+    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
+    defilter(this._pixelData, this._width, fullPixelSize);
   }
 
   _setSingleValuePixel(index, value) {
@@ -175,7 +161,8 @@ export default class IDAT extends Chunk {
   }
 
   translateXyToIndex(x, y) {
-    return y * (this._width * this._pixelSize + 1) + (x * this._pixelSize) + 1;
+    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
+    return y * (this._width * fullPixelSize + 1) + (x * fullPixelSize) + 1;
   }
 
   verify(bufView) {
@@ -190,19 +177,9 @@ export default class IDAT extends Chunk {
     this._zlibLib = lib;
   }
 
-  /**
-   * @todo
-   * Remove in favor of base class's
-   */
-  calculateDataOffset() {
-    // return CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE + DEFLATE_BLOCK_SIZE + ZLIB_HEADER_SIZE;
-    return CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE;
-  }
-
   calculatePixelAndFilterSize() {
-    console.log('pixel and filter size', this._width, this._pixelSize, this._height);
-
-    return (this._width * this._pixelSize + 1) * this._height;
+    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
+    return (this._width * fullPixelSize + 1) * this._height;
     // return (this._numberOfPixels * this._pixelSize + 1) * this._height;
   }
 

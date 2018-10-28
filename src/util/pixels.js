@@ -1,5 +1,8 @@
-const _clamp = (value, min, max) => Math.min(Math.max(min, value), max);
+import {
+  ColorTypes,
+} from './constants';
 
+const _clamp = (value, min, max) => Math.min(Math.max(min, value), max);
 
 const _setRgbaPixelData = (pixel, chunks) => {
   const { red, green, blue, alpha } = pixel;
@@ -17,21 +20,25 @@ const _setRgbaPixelData = (pixel, chunks) => {
     // - as color info
 };
 
-export const convertRgbaToPaletteColor = (red, green, blue, alpha = 255) => {
-  red = _clamp(red, 0, 255);
-  green = _clamp(green, 0, 255);
-  blue = _clamp(blue, 0, 255);
-  alpha = _clamp(alpha, 0, 255);
-  return (((((alpha << 8) | red) << 8) | green) << 8) | blue;
-};
+export const hashPixelKey = (colorData) => colorData.join(',');
 
-export const convertPaletteColorToRgba = (color) => {
-  const alpha = color >> 24 & 255;
-  const red = color >> 16 & 255;
-  const green = color >> 8 & 255;
-  const blue = color & 255;
-  return [red, green, blue, alpha];
-};
+export const unhashPixelKey = (hashedPixel) => hashedPixel.split(',');
+
+// export const convertRgbaToPaletteColor = (red, green, blue, alpha = 255) => {
+//   red = _clamp(red, 0, 255);
+//   green = _clamp(green, 0, 255);
+//   blue = _clamp(blue, 0, 255);
+//   alpha = _clamp(alpha, 0, 255);
+//   return (((((alpha << 8) | red) << 8) | green) << 8) | blue;
+// };
+
+// export const convertPaletteColorToRgba = (color) => {
+//   const alpha = color >> 24 & 255;
+//   const red = color >> 16 & 255;
+//   const green = color >> 8 & 255;
+//   const blue = color & 255;
+//   return [red, green, blue, alpha];
+// };
 
 export const setPixel = (type, pos, data, chunks) => {
   const { PLTE, IDAT, tRNS } = chunks;
@@ -109,3 +116,18 @@ export const deleteColor = (deletedColor, replacementColor, chunks) => {
   export const computeNumberOfPixels = (width, height) => width * height;
 
   export const computeMaxNumberOfColors = (depth) => 2 ** depth;
+
+  export const determinePixelColorSize = (colorType) => {
+    return colorType === ColorTypes.GRAYSCALE ||
+      colorType == ColorTypes.GRAYSCALE_AND_ALPHA ||
+      colorType == ColorTypes.INDEXED ?
+      1 :
+      3;
+  };
+
+  export const determineHasAlphaSample = (colorType) => {
+    return colorType == ColorTypes.GRAYSCALE_AND_ALPHA ||
+      colorType == ColorTypes.TRUECOLOR_AND_ALPHA ?
+      true :
+      false;
+  };

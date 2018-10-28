@@ -1,7 +1,8 @@
 import Chunk from './chunk';
-import { convertRgbaToPaletteColor, convertPaletteColorToRgba } from '../util/pixels';
+import { hashPixelKey, unhashPixelKey } from '../util/pixels';
 
 const HEADER = 'PLTE';
+const SAMPLES_PER_ENTRY = 3;
 
 export default class PLTE extends Chunk {
   constructor(options) {
@@ -9,8 +10,6 @@ export default class PLTE extends Chunk {
 
     this._maxNumberOfColors = options.maxNumberOfColors;
     this._palette = {};
-    this._index = 1;
-    this._isBackgroundSet = false;
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
@@ -32,18 +31,10 @@ export default class PLTE extends Chunk {
 
     const sorted = Object.entries(this._palette).sort((a, b) => a[1] - b[1]);
     for (let i = 0; i < sorted.length; i++) {
-      let rgba = convertPaletteColorToRgba(sorted[i][0]);
+      let rgba = unhashPixelKey(sorted[i][0]);
       this.buffer.writeUint8(rgba[0]); 
       this.buffer.writeUint8(rgba[1]); 
-      this.buffer.writeUint8(rgba[2]); 
-    }
-
-    // Remove this when done.
-    // Palettes need not have the full amount of entries
-    for (let i = sorted.length; i < this._maxNumberOfColors; i++) {
-      this.buffer.writeUint8(0); 
-      this.buffer.writeUint8(0); 
-      this.buffer.writeUint8(0); 
+      this.buffer.writeUint8(rgba[2]);
     }
 
     const crc = this.calculateCrc32();
@@ -51,54 +42,49 @@ export default class PLTE extends Chunk {
   }
 
   load(abuf) {
+    const colorInfo = abuf.subarray(
+      this.calculateDataOffset(),
+      abuf.byteLength
+    );
+
+    for (let i = 0, n = 0; i < colorInfo.length - 2; i += SAMPLES_PER_ENTRY, n += 1) {
+      this.setColor([
+        colorInfo[i],
+        colorInfo[i + 1],
+        colorInfo[i + 2],
+      ], n, false);
+    }
+
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
-    this.buffer.copyInto(abuf, chunkLength);
-
-    /**
-     * @todo
-     * Loop through colors and add them to palette.
-     */
-    // addColor()
   }
 
+  /**
+   * @todo
+   */
   isColorInPalette(colorData) {
     let color;
     if (Array.isArray(colorData)) {
       color = convertRgbaToPaletteColor(...colorData);
     } else {
-      color = colorData;
+      color = String(colorData);
     }
     return this._palette.hasOwnProperty(color);
   }
 
-  addColor(colorData) {
-    const color = convertRgbaToPaletteColor(...colorData);
+  setColor(colorData, index = 0, checkExistence = true) {
+    const color = hashPixelKey(colorData);
 
-    if (this.isColorInPalette(color)) {
+    if (checkExistence && this.isColorInPalette(color)) {
       return this._palette[color];
     }
     if (this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {
       throw new Error('Maximum number of colors reached');
     }
 
-    const currentIndex = this._index;
-    this._palette[color] = currentIndex;
-    this._index += 1;
-
+    this._palette[color] = index;
     return this._palette[color];
   }
-
-  // setColor(colorData, sampleIndex) {
-  //   if (this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {
-  //     return undefined;
-  //   }
-
-  //   console.log('COLOR DATA', ...colorData)
-  //   const color = createRgbaPaletteColor(...colorData);
-  //   this._palette[color] = sampleIndex;
-  //   return sampleIndex;
-  // }
 
   swapColor(oldColor, newColor) {
     if (!this.isColorInPalette(oldColor)) {
@@ -111,20 +97,23 @@ export default class PLTE extends Chunk {
     return this;
   }
 
-  setBackgroundColor(colorData) {
-    const color = convertRgbaToPaletteColor(...colorData);
-    if (this.getCurrentNumberOfColors() < this._maxNumberOfColors) {
-      this._palette[color] = 0;
-    }
-    this._isBackgroundSet = true;
-    return this;
-  }
+  // setBackgroundColor(colorData) {
+  //   const color = convertRgbaToPaletteColor(...colorData);
+  //   if (this.getCurrentNumberOfColors() < this._maxNumberOfColors) {
+  //     this._palette[color] = 0;
+  //   }
+  //   this._isBackgroundSet = true;
+  //   return this;
+  // }
 
   getCurrentNumberOfColors() {
     let startCount = this._isBackgroundSet ? 1 : 0;
     return startCount + this._index;
   }
 
+  /**
+   * @todo
+   */
   getColorIndex(colorData) {
     if (!this.isColorInPalette(colorData)) {
       return -1;
@@ -136,8 +125,7 @@ export default class PLTE extends Chunk {
   }
 
   calculatePayloadSize() {
-    // Update to the number of entries.
-    return this._maxNumberOfColors * 3;
+    return Object.keys(this._palette).length * SAMPLES_PER_ENTRY;
   }
 
   calculateChunkLength() {
