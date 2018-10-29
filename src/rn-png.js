@@ -1,3 +1,7 @@
+/**
+ * http://www.schaik.com/pngsuite/
+ */
+
 import {
   SupportedChunks,
   ChunkHeaderSequences,
@@ -78,6 +82,7 @@ const _initializeChunks = (ctxt, metaData) => {
     IDAT: new IDAT({
       width,
       height,
+      depth,
       colorType,
       numberOfPixels,
       maxNumberOfColors,
@@ -140,21 +145,18 @@ const _buildBuffer = (ctxt) => {
 };
 
 /**
- * Get palette
- * Fix,
+ * [√] Get palette
+ * [√] Fix,
  * Get transparencies
+ * Get data
  * Set color
  * Set transparency
  * Swap palette color
- * Get other basics to work
- */
-
-/**
- * - Modify constructor so that it works with
- *   - empty initialization
- *   - options
- * - Limit to 8 bit depth or less
- * - Clean-up
+ * [√] Get other basics to work
+ * Convert getters to look like plain properties
+ * Limit to 8 bit depth or less
+ * Write tests!
+ * Clean-up
  */
 
 export default class RnPng {
@@ -319,6 +321,7 @@ export default class RnPng {
         chunk.applyLayoutInformation({
           width: _width.get(this),
           height: _height.get(this),
+          depth: _depth.get(this),
           colorType: _colorType.get(this),
           numberOfPixels: computeNumberOfPixels(_width.get(this), _height.get(this)),
         });
@@ -331,6 +334,10 @@ export default class RnPng {
 
   getChunksUsed() {
     return Object.keys(_chunks.get(this)).filter((chunkHeader) => chunkHeader !== 'prefix');
+  }
+
+  getData() {
+    return _chunks.get(this).IDAT.pixels;
   }
 
   /**

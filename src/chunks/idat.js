@@ -18,6 +18,7 @@ export default class IDAT extends Chunk {
     this.applyLayoutInformation({
       width: options.width,
       height: options.height,
+      depth: options.depth,
       colorType: options.colorType,
       numberOfPixels: options.numberOfPixels,
     });
@@ -59,6 +60,7 @@ export default class IDAT extends Chunk {
   applyLayoutInformation(info) {
     this._width = info.width;
     this._height = info.height;
+    this._depth = info.depth;
     this._colorType = info.colorType;
     this._numberOfPixels = info.numberOfPixels;
 
@@ -140,7 +142,7 @@ export default class IDAT extends Chunk {
 
     this._pixelData = this._zlibLib.inflate(compressedZlibData);
     console.log('IDAT pixel color size', this._pixelColorSize);
-    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
+    console.log('IDAT pixels', this._pixelData);
 
     /**
      * Need an alternate way to calculate chunk length
@@ -149,13 +151,43 @@ export default class IDAT extends Chunk {
     // console.log('chunkLength', chunkLength);
     // this.initialize(chunkLength);
 
-    console.log('fullPixelSize', fullPixelSize)
 
-    if (ColorTypes.INDEXED !== this._colorType && this._bitDepth >= BitDepths.EIGHT) {
+    if (this._depth < BitDepths.EIGHT || ColorTypes.INDEXED === this._colorType) {
+    //   console.log('UNFILTER');
+
+      return;  // Don
+    }
+      // ) {
+    // if (ColorTypes.INDEXED !== this._colorType && this._bitDepth >= BitDepths.EIGHT) {
+      const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
+      console.log('fullPixelSize', fullPixelSize, this._depth, this._colorType)
+
       defilter(this._pixelData, this._width, fullPixelSize);
       console.log('FILTER');
-    }
-    console.log('UNFILTER');
+    // }
+
+    /**
+     * @todo
+     * Convert to proper pixel array for bit depth
+     * (160 - 32) * 8 * 4 = 4096
+     * 160 = number of entries in source
+     * 32 = number of filter bytes
+     * 8 = number of bits in a byte
+     * 1024 [not shown] = the number of elements in the pixel data array
+     * 4 = number of samples per pixel
+     * 4096 = the expected number when returning as .data
+     */
+    /**
+        byte8 = byte & 1;
+        byte7 = byte >> 1 & 1;
+        byte6 = byte >> 2 & 1;
+        byte5 = byte >> 3 & 1;
+        byte4 = byte >> 4 & 1;
+        byte3 = byte >> 5 & 1;
+        byte2 = byte >> 6 & 1;
+        byte1 = byte >> 7 & 1;
+     */
+
     console.log('pixel data length', this._pixelData.length);
   }
 
