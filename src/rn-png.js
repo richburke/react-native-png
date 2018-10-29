@@ -139,13 +139,21 @@ const _buildBuffer = (ctxt) => {
   _buffer.set(ctxt, bufView);
 };
 
+/**
+ * Get palette
+ * Fix,
+ * Get transparencies
+ * Set color
+ * Set transparency
+ * Swap palette color
+ * Get other basics to work
+ */
 
 /**
  * - Modify constructor so that it works with
  *   - empty initialization
  *   - options
- * - Limit to 8 bit depth / sample
- * - Move filters to their own util
+ * - Limit to 8 bit depth or less
  * - Clean-up
  */
 
@@ -219,6 +227,8 @@ export default class RnPng {
       ? buffer
       : Uint8Array.from(buffer);
 
+      console.log('on load', buffer);
+
     if (!_chunks.get(this).prefix.verify(bufView)
       || !_chunks.get(this).IHDR.verify(bufView)
       || !_chunks.get(this).IDAT.verify(bufView)
@@ -253,6 +263,7 @@ export default class RnPng {
 
     console.log('chunks', this.getChunksUsed());
     console.log('metaData', this.getMetaData());
+    // console.log('palette indices', this.getPaletteIndices());
 
     return this;
   }
@@ -340,6 +351,14 @@ export default class RnPng {
     return _chunks.get(this).PLTE.palette;
   }
 
+  getPaletteIndices() {
+    console.log('PLTE indices', _chunks.get(this).PLTE.getPixelPaletteIndices());
+    if ('undefined' === typeof _chunks.get(this).PLTE) {
+      throw new Error('Attempting to get palette indices when there no palette exists');
+    }
+    return _chunks.get(this).IDAT.getPixelPaletteIndices();
+  }
+
   /**
    * @todo
    * 
@@ -400,6 +419,11 @@ export default class RnPng {
     return this;
   }
 
+  /**
+   * @todo
+   * This will be supported in a later version.
+   * 
+   */
   dedupePalette() {
     return this;
   }

@@ -1,5 +1,6 @@
 import Chunk from './chunk';
 import { hashPixelKey, unhashPixelKey } from '../util/pixels';
+import { readUint32At } from '../util/typed-array';
 
 const HEADER = 'PLTE';
 const SAMPLES_PER_ENTRY = 3;
@@ -42,12 +43,19 @@ export default class PLTE extends Chunk {
   }
 
   load(abuf) {
+    // console.log('PLTE, on load', abuf);
+
     const colorInfo = abuf.subarray(
       this.calculateDataOffset(),
       abuf.byteLength
     );
 
-    for (let i = 0, n = 0; i < colorInfo.length - 2; i += SAMPLES_PER_ENTRY, n += 1) {
+    const paletteSize = readUint32At(abuf, 0);
+    if (0 !== paletteSize % SAMPLES_PER_ENTRY) {
+      throw new Error('Invalid palette size supplied for PLTE chunk');
+    }
+
+    for (let i = 0, n = 0; i < paletteSize; i += SAMPLES_PER_ENTRY, n += 1) {
       this.setColor([
         colorInfo[i],
         colorInfo[i + 1],
@@ -124,7 +132,16 @@ export default class PLTE extends Chunk {
     return this._palette[colorData];
   }
 
+  /**
+   * @todo
+   * Remove, for testing only
+   */
+  getPixelPaletteIndices() {
+    return new Set(Array.from(new Set(Object.values(this._palette))).sort((a, b) => a - b));
+  }
+
   calculatePayloadSize() {
+    console.log('palette length', Object.keys(this._palette).length);
     return Object.keys(this._palette).length * SAMPLES_PER_ENTRY;
   }
 

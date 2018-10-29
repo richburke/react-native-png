@@ -1,7 +1,7 @@
-import Chunk, { CHUNK_LENGTH_SIZE, CHUNK_HEADER_SIZE, CHUNK_CRC32_SIZE } from './chunk';
-import { ChunkHeaderSequences } from '../util/constants';
+import Chunk, { CHUNK_CRC32_SIZE } from './chunk';
+import { ChunkHeaderSequences, ColorTypes, BitDepths } from '../util/constants';
 import { determinePixelColorSize, determineHasAlphaSample } from '../util/pixels';
-import { indexOfSequence } from '../util/typed-array';
+import { indexOfSequence, readUint32At } from '../util/typed-array';
 import { defilter } from '../util/compress-decompress';
 
 const HEADER = 'IDAT';
@@ -70,60 +70,93 @@ export default class IDAT extends Chunk {
    * @todo
    * Move to a separate library, maybe something for all compression-decompression.
    */
-  initializeDeflateBlockHeaders() {
-    const pixelAndFilterSize = this.calculatePixelAndFilterSize();
+  // initializeDeflateBlockHeaders() {
+  //   const pixelAndFilterSize = this.calculatePixelAndFilterSize();
 
-    for (let i = 0; (i << 16) - 1 < pixelAndFilterSize; i++) {
-      console.log('calculating deflate...', i, (i << 16) - 1, i + 0xffff, pixelAndFilterSize);
-      let size, bits;
-      if (i + 0xffff < pixelAndFilterSize) {
-        console.log('deflate less than')
-        size = 0xffff;
-        bits = 0x00;
-        // bits = "\x00";
+  //   for (let i = 0; (i << 16) - 1 < pixelAndFilterSize; i++) {
+  //     console.log('calculating deflate...', i, (i << 16) - 1, i + 0xffff, pixelAndFilterSize);
+  //     let size, bits;
+  //     if (i + 0xffff < pixelAndFilterSize) {
+  //       console.log('deflate less than')
+  //       size = 0xffff;
+  //       bits = 0x00;
+  //       // bits = "\x00";
 
-      } else {
-        console.log('deflate greater than or equal')
+  //     } else {
+  //       console.log('deflate greater than or equal')
 
-        size = pixelAndFilterSize - (i << 16) - i;
-        bits = 0x01;
-        // bits = "\x01";
+  //       size = pixelAndFilterSize - (i << 16) - i;
+  //       bits = 0x01;
+  //       // bits = "\x01";
 
-      }
-      let offset = 8 + 2 + (i << 16) + (i << 2);
-      offset = this.buffer.writeUint8At(offset, bits);
-      offset = this.buffer.writeUint16At(offset, size, true);
-      this.buffer.writeUint16At(offset, ~size, true);
-      console.log('deflate headers, rnpng ->', 8 + 2 + (i << 16) + (i << 2), bits, size);
-      // write(this.buffer, 8 + 2 + (i << 16) + (i << 2), bits, byte2lsb(size), byte2lsb(~size));
-      // write(this.buffer, 8 + 2 + (i << 16) + (i << 2), bits, byte2lsb(size), byte2lsb(~size));
-    }
-  }
+  //     }
+  //     let offset = 8 + 2 + (i << 16) + (i << 2);
+  //     offset = this.buffer.writeUint8At(offset, bits);
+  //     offset = this.buffer.writeUint16At(offset, size, true);
+  //     this.buffer.writeUint16At(offset, ~size, true);
+  //     console.log('deflate headers, rnpng ->', 8 + 2 + (i << 16) + (i << 2), bits, size);
+  //     // write(this.buffer, 8 + 2 + (i << 16) + (i << 2), bits, byte2lsb(size), byte2lsb(~size));
+  //     // write(this.buffer, 8 + 2 + (i << 16) + (i << 2), bits, byte2lsb(size), byte2lsb(~size));
+  //   }
+  // }
 
   update() {
-    const chunkSize = this.calculateChunkLength();
+    const chunkLength = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
+
+    console.log('IDAT, calculated payload size', payloadSize);
+
+    /**
+     * @todo
+     * Need to solve this space problem.  Use 
+     * basn3p08
+     * There shouldn't be all those empty values at the end.
+     */
+    const compressedPixelAndFilterData = this._zlibLib.deflate(this._pixelData);
+    // const chunkLength = this.calculateChunkLength(compressedPixelAndFilterData.length + 12);
+    this.initialize(chunkLength);
 
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-    const compressedPixelAndFilterData = this._zlibLib.deflate(this._pixelData);
     this.buffer.copyFrom(compressedPixelAndFilterData);
 
     const crc = this.calculateCrc32();
-    this.buffer.writeUint32At(chunkSize - CHUNK_CRC32_SIZE, crc);
+    this.buffer.writeUint32At(chunkLength - CHUNK_CRC32_SIZE, crc);
   }
 
   load(abuf) {
-    const chunkLength = this.calculateChunkLength();
-    this.initialize(chunkLength);
+
+        console.log('IDAT, on load', abuf);
+
 
     const dataOffset = this.calculateDataOffset();
+    const dataSize = readUint32At(abuf, 0);
     const compressedZlibData = abuf.subarray(dataOffset);
+    // const compressedZlibData = abuf.subarray(dataOffset, dataOffset + dataSize + 12);
+
+    console.log('IDAT, dataSize', dataSize);
+    // console.log('IDAT, compressed', compressedZlibData);
 
     this._pixelData = this._zlibLib.inflate(compressedZlibData);
+    console.log('IDAT pixel color size', this._pixelColorSize);
     const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
-    defilter(this._pixelData, this._width, fullPixelSize);
+
+    /**
+     * Need an alternate way to calculate chunk length
+     */
+    // const chunkLength = this.calculateChunkLength();
+    // console.log('chunkLength', chunkLength);
+    // this.initialize(chunkLength);
+
+    console.log('fullPixelSize', fullPixelSize)
+
+    if (ColorTypes.INDEXED !== this._colorType && this._bitDepth >= BitDepths.EIGHT) {
+      defilter(this._pixelData, this._width, fullPixelSize);
+      console.log('FILTER');
+    }
+    console.log('UNFILTER');
+    console.log('pixel data length', this._pixelData.length);
   }
 
   _setSingleValuePixel(index, value) {
@@ -158,6 +191,18 @@ export default class IDAT extends Chunk {
       this._setSingleValuePixel(index, pixel);
     }
     return this;
+  }
+
+  /**
+   * It's possible for a Truecolor and a Truecolor (2) with alpha (6) to
+   * have paleltte indices as well, but that's not supported in this
+   * implementation.
+   */
+  getPixelPaletteIndices() {
+    if (this._colorType !== ColorTypes.INDEXED) {
+      return [];
+    }
+    return new Set(Array.from(new Set(this._pixelData)).sort((a, b) => a - b));
   }
 
   translateXyToIndex(x, y) {
@@ -214,7 +259,10 @@ export default class IDAT extends Chunk {
       + ADLER_CHECKSUM_SIZE;
   }
 
-  calculateChunkLength() {
+  calculateChunkLength(dataLength = -1) {
+    if (dataLength !== -1) {
+      return super.calculateChunkLength() + dataLength;
+    }
     return super.calculateChunkLength() + this.calculatePayloadSize();
   }
 }

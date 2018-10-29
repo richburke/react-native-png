@@ -1,2 +1,4 @@
 • Size!
-• Can read images with cHRM values but they cannot be created from scratch
+• Can only handle images with a single IDAT chunk.
+• The only supported chunks for display are: IHDR, IDAT, PLTE, tRNS, bKGD, IEND
+

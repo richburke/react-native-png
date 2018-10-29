@@ -63,7 +63,7 @@ const defilterPaeth = (rowData, bytesPerPixel, previousRowData) => {
 export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
   const rowSize = width * bytesPerPixel + 1;
   let filter;
-  let currentRow;
+  let scanLine;
   let previousRow;
   let firstDataByteIndex;
 
@@ -71,36 +71,36 @@ export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
     filter = imageAndFilterData[i];
     firstDataByteIndex = i + 1;
 
-    currentRow = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
+    scanLine = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
     console.log('FILTER', filter);
     if (filter === 0) {
       console.log('filter is none', bytesPerPixel);
     }
     if (filter === 1) {
       console.log('filter is sub', bytesPerPixel);
-      defilterSub(currentRow, bytesPerPixel);
+      defilterSub(scanLine, bytesPerPixel);
     }
     if (filter === 2) {
       console.log('filter is up');
-      defilterUp(currentRow, previousRow, i);
+      defilterUp(scanLine, previousRow, i);
     }
     if (filter === 3) {
       console.log('filter is average!');
-      defilterAverage(currentRow, bytesPerPixel, previousRow);
+      defilterAverage(scanLine, bytesPerPixel, previousRow);
     }
     if (filter === 4) {
       console.log('filter is paeth!');
-      defilterPaeth(currentRow, bytesPerPixel, previousRow);
+      defilterPaeth(scanLine, bytesPerPixel, previousRow);
     }
 
     imageAndFilterData[i] = 0;
-    previousRow = currentRow.slice(0);
+    previousRow = scanLine.slice(0);
   }
 
   let s = '\n';
   for (let i=0, n = imageAndFilterData.byteLength; i < n; i++) {
     s += '|' + imageAndFilterData[i];
-    if ((i + 1) % 10 === 0) {
+    if ((i + 1) % 4 === 0) {
       s += '\n';
     }
   }
