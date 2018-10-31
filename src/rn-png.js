@@ -147,8 +147,14 @@ const _buildBuffer = (ctxt) => {
 /**
  * [√] Get palette
  * [√] Fix,
- * Get transparencies
  * Get data
+ * - 1 bit
+ * - 2 bit
+ * - 4 bit
+ * - 8 bit
+ * 
+ * Get palette
+ * Get transparencies
  * Set color
  * Set transparency
  * Swap palette color
@@ -336,8 +342,8 @@ export default class RnPng {
     return Object.keys(_chunks.get(this)).filter((chunkHeader) => chunkHeader !== 'prefix');
   }
 
-  getData() {
-    return _chunks.get(this).IDAT.pixels;
+  getData(inRgbaFormat = false) {
+    return _chunks.get(this).IDAT.getData(inRgbaFormat);
   }
 
   /**
@@ -375,7 +381,7 @@ export default class RnPng {
   }
 
   setPixel(pos, data) {
-    if (Array.isArray(data)) {
+    // if (Array.isArray(data)) {
       // const red = data[0];
       // const green = data[1];
       // const blue = data[2];
@@ -389,9 +395,9 @@ export default class RnPng {
       // _chunks.get(this).IDAT.setPixel(pos, paletteIndex);
 
       _chunks.get(this).IDAT.setPixel(pos, data);
-    } else {
-      const value = data;
-    }
+    // } else {
+    //   const value = data;
+    // }
 
     return this;
   }

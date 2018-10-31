@@ -1,3 +1,7 @@
+/**
+ * bytes
+ */
+
 export const indexOfSequence = (bv, seq, start = 0, end = -1) => {
   let searchIndices;
   let limit = end !== -1

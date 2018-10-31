@@ -30,14 +30,20 @@ export default class IDAT extends Chunk {
     // this.initializeDeflateBlockHeaders();
     const pixelAndFilterSize = this.calculatePixelAndFilterSize();
     this._pixelData = new Uint8ClampedArray(pixelAndFilterSize);
+
+    this.stickIt = null;
   }
 
   /**
    * @todo
    * Remove.  Just for testing
    */
-  get pixels() {
-    // This needs to be fixed to just return pixels
+  // get pixels() {
+  //   // This needs to be fixed to just return pixels
+  //   return this._pixelData;
+  // }
+
+  getData(inRgbaFormat) {
     return this._pixelData;
   }
 
@@ -103,92 +109,158 @@ export default class IDAT extends Chunk {
   // }
 
   update() {
-    const chunkLength = this.calculateChunkLength();
+    const chunkSize = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
-
-    console.log('IDAT, calculated payload size', payloadSize);
-
-    /**
-     * @todo
-     * Need to solve this space problem.  Use 
-     * basn3p08
-     * There shouldn't be all those empty values at the end.
-     */
-    const compressedPixelAndFilterData = this._zlibLib.deflate(this._pixelData);
-    // const chunkLength = this.calculateChunkLength(compressedPixelAndFilterData.length + 12);
-    this.initialize(chunkLength);
 
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
+    // console.log('updating -->', this._pixelData.length, this._height);
+
+    /*
+    differs by bit depth
+    ? Math.ceil(this._pixelData / (8 / bit depth));
+    */
+    const packedPixelData = new Uint8ClampedArray(128);
+    // console.log('packing data -->');
+    this.packByteData(this._pixelData, packedPixelData, this._depth);
+    // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
+    // console.log('adding filter fields -->');
+    const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
+    this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
+
+    // console.log('deflating pixel data -->');
+    const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
     this.buffer.copyFrom(compressedPixelAndFilterData);
 
     const crc = this.calculateCrc32();
-    this.buffer.writeUint32At(chunkLength - CHUNK_CRC32_SIZE, crc);
+    this.buffer.writeUint32At(chunkSize - CHUNK_CRC32_SIZE, crc);
   }
 
   load(abuf) {
-
-        console.log('IDAT, on load', abuf);
-
+    const chunkLength = this.calculateChunkLength();
+    this.initialize(chunkLength);
 
     const dataOffset = this.calculateDataOffset();
-    const dataSize = readUint32At(abuf, 0);
     const compressedZlibData = abuf.subarray(dataOffset);
-    // const compressedZlibData = abuf.subarray(dataOffset, dataOffset + dataSize + 12);
 
-    console.log('IDAT, dataSize', dataSize);
-    // console.log('IDAT, compressed', compressedZlibData);
+    const uncompressedData = this._zlibLib.inflate(compressedZlibData);
+    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
 
-    this._pixelData = this._zlibLib.inflate(compressedZlibData);
-    console.log('IDAT pixel color size', this._pixelColorSize);
-    console.log('IDAT pixels', this._pixelData);
-
-    /**
-     * Need an alternate way to calculate chunk length
-     */
-    // const chunkLength = this.calculateChunkLength();
-    // console.log('chunkLength', chunkLength);
-    // this.initialize(chunkLength);
-
-
-    if (this._depth < BitDepths.EIGHT || ColorTypes.INDEXED === this._colorType) {
-    //   console.log('UNFILTER');
-
-      return;  // Don
+    if (this._depth >= BitDepths.EIGHT && ColorTypes.INDEXED !== this._colorType) {
+      defilter(uncompressedData, this._width, fullPixelSize);
     }
-      // ) {
-    // if (ColorTypes.INDEXED !== this._colorType && this._bitDepth >= BitDepths.EIGHT) {
-      const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
-      console.log('fullPixelSize', fullPixelSize, this._depth, this._colorType)
 
-      defilter(this._pixelData, this._width, fullPixelSize);
-      console.log('FILTER');
+    // this._pixelData = Uint8ClampedArray.from(uncompressedData);
+
+    // console.log('uncompressedData -->', uncompressedData);
+    let pixelOnlyData = new Uint8ClampedArray(uncompressedData.length - this._height);
+    // let pixelOnlyData = new Uint8ClampedArray(pixelAndFilterData.length - this._height);
+    this.trimFilterFields(uncompressedData, pixelOnlyData, 5);
+
+    if (BitDepths.ONE === this._depth
+      || BitDepths.TWO === this._depth
+      || BitDepths.FOUR === this._depth) {
+        // console.log('load, packed pixel data length -->', pixelOnlyData.length);
+        const unpackedPixelData = new Uint8ClampedArray(pixelOnlyData.length * 8);
+        this.expandByteData(pixelOnlyData, unpackedPixelData, this._depth);
+        this._pixelData = Uint8ClampedArray.from(unpackedPixelData);
+    } else {
+      this._pixelData = Uint8ClampedArray.from(pixelOnlyData);
+    }
+
+    // console.log('= --->', this._pixelData);
+  }
+
+  trimFilterFields(pixelAndFilterData, pixelOnlyData, scanlineStep) {
+    // const lengthOfDataLine = width * bytesPerPixel;
+    // const lengthOfDataAndFilterLine = lengthOfDataLine + 1;
+    // Size is byte for every row.
+    const dataRowSize = scanlineStep - 1;
+    console.log('pixelData length -->', pixelAndFilterData.length, pixelOnlyData.length);
+
+    /**
+     * for each row,
+     * find the starting index of the row including filter
+     * add one to it
+     * subarray that to data length
+     */
+
+    for (let i = 0, n = 0; i < pixelAndFilterData.length; i += scanlineStep, n += dataRowSize) {
+      let currentIndex = i + 1;
+      let s = pixelAndFilterData.subarray(currentIndex, currentIndex + dataRowSize);
+      // console.log('-->', i, n, s);
+      pixelOnlyData.set(s, n);  // + 1
+    }
+    // const rowSize = width * bytesPerPixel + 1;
+    // let filter;
+    // let scanLine;
+    // let previousRow;
+    // let firstDataByteIndex;
+  
+    // for (let i = 0, n = imageAndFilterData.byteLength; i < n; i += rowSize) {
+    //   filter = imageAndFilterData[i];
+    //   firstDataByteIndex = i + 1;
+  
+    //   scanLine = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
     // }
+    // return imageAndFilterData.subarray(0);
+  }
 
-    /**
-     * @todo
-     * Convert to proper pixel array for bit depth
-     * (160 - 32) * 8 * 4 = 4096
-     * 160 = number of entries in source
-     * 32 = number of filter bytes
-     * 8 = number of bits in a byte
-     * 1024 [not shown] = the number of elements in the pixel data array
-     * 4 = number of samples per pixel
-     * 4096 = the expected number when returning as .data
-     */
-    /**
-        byte8 = byte & 1;
-        byte7 = byte >> 1 & 1;
-        byte6 = byte >> 2 & 1;
-        byte5 = byte >> 3 & 1;
-        byte4 = byte >> 4 & 1;
-        byte3 = byte >> 5 & 1;
-        byte2 = byte >> 6 & 1;
-        byte1 = byte >> 7 & 1;
-     */
+  prependFilterFields(pixelOnlyData, pixelAndFilterData, dataRowSize) {
+    const scanlineStep = dataRowSize + 1;
+    for (let i = 0, n = 0; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep) {
+      let t = pixelOnlyData.subarray(i, i + dataRowSize);
+      let s = [0, ...t];
+      // console.log(i, n, t, s);
+      pixelAndFilterData.set(s, n);  // + 1
+    }
+  }
 
-    console.log('pixel data length', this._pixelData.length);
+  expandDepth1Data(unexpandedData, expandedData) {
+    console.log('unexpanded data', unexpandedData, unexpandedData.length);
+    let expandedIndex = 0;
+    unexpandedData.forEach((byte) => {
+      expandedData[expandedIndex++] = (byte & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 1 & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 2 & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 3 & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 4 & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 5 & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 6 & 1) === 1 ? 255 : 0;
+      expandedData[expandedIndex++] = (byte >> 7 & 1) === 1 ? 255 : 0;
+    });
+    // console.log('expandedData', expandedData);
+  }
+
+  packDepth1Data(unpackedData, packedData) {
+    let i = 0;
+    let n = 0;
+    let byte = 0;
+    while (i < unpackedData.length) {
+      byte = unpackedData[i++] === 255 ? 1 : 0;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 1;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 2;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 3;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 4;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 5;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 6;
+      byte += (unpackedData[i++] === 255 ? 1 : 0) << 7;
+      // console.log('n -->', n);
+      packedData[n++] = byte;
+    }
+  }
+
+  expandByteData(unexpandedData, expandedData, depth) {
+    if (BitDepths.ONE === depth) {
+      this.expandDepth1Data(unexpandedData, expandedData);
+    }
+  }
+
+  packByteData(unpackedData, packedData, depth) {
+    if (BitDepths.ONE === depth) {
+      this.packDepth1Data(unpackedData, packedData);
+    }
   }
 
   _setSingleValuePixel(index, value) {
@@ -239,7 +311,8 @@ export default class IDAT extends Chunk {
 
   translateXyToIndex(x, y) {
     const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
-    return y * (this._width * fullPixelSize + 1) + (x * fullPixelSize) + 1;
+    return y * (this._width * fullPixelSize) + (x * fullPixelSize);
+    // return y * (this._width * fullPixelSize + 1) + (x * fullPixelSize) + 1;
   }
 
   verify(bufView) {
@@ -283,18 +356,20 @@ export default class IDAT extends Chunk {
     return [s1, s2];
   }
 
-  calculatePayloadSize() {
-    const pixelAndFilterSize = this.calculatePixelAndFilterSize();
+  calculatePayloadSize(pixelAndFilterSize = -1) {
+    if (pixelAndFilterSize === -1) {
+      pixelAndFilterSize = this.calculatePixelAndFilterSize();
+    }
     return DEFLATE_BLOCKS_SIZE
       + pixelAndFilterSize  // Row filter and pixel data
       + ZLIB_HEADER_SIZE * Math.floor((0xfffe + pixelAndFilterSize) / 0xffff)  // Zlib blocks
       + ADLER_CHECKSUM_SIZE;
   }
 
-  calculateChunkLength(dataLength = -1) {
-    if (dataLength !== -1) {
-      return super.calculateChunkLength() + dataLength;
+  calculateChunkLength(payloadSize = -1) {
+    if (payloadSize === -1) {
+      payloadSize = this.calculatePayloadSize();
     }
-    return super.calculateChunkLength() + this.calculatePayloadSize();
+    return super.calculateChunkLength() + payloadSize;
   }
 }

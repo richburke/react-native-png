@@ -74,8 +74,13 @@ export default class Chunk {
     return CHUNK_LENGTH_SIZE + CHUNK_HEADER_SIZE + CHUNK_CRC32_SIZE;
   }
 
-  calculateCrc32() {
-    const size = this.calculateChunkLength() - CHUNK_LENGTH_SIZE - CHUNK_CRC32_SIZE;
+  /**
+   * Set this back to the way it was, without passing chunkLength
+   */
+  calculateCrc32(chunkLength = -1) {
+    chunkLength = chunkLength !== -1 ? chunkLength : this.calculateChunkLength();
+    const size = chunkLength - CHUNK_LENGTH_SIZE - CHUNK_CRC32_SIZE;
+    console.log('size -->', chunkLength, size);
     return calculateCrc32(this.buffer, CHUNK_LENGTH_SIZE, size);
   }
 
