@@ -167,6 +167,12 @@ const _buildBuffer = (ctxt) => {
 
 export default class RnPng {
 
+  static PixelLayout = {
+    VALUE: 1,
+    RGB: 3,
+    RGBA: 4,
+  };
+
   constructor(options = {}) {
     const width = options.width || 0;
     const height = options.height || 0;
@@ -342,8 +348,8 @@ export default class RnPng {
     return Object.keys(_chunks.get(this)).filter((chunkHeader) => chunkHeader !== 'prefix');
   }
 
-  getData(inRgbaFormat = false) {
-    return _chunks.get(this).IDAT.getData(inRgbaFormat);
+  getData(pixelLayout = RnPng.PixelLayout.VALUE) {
+    return _chunks.get(this).IDAT.getData(pixelLayout);
   }
 
   /**

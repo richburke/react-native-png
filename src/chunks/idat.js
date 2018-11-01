@@ -1,7 +1,7 @@
 import Chunk, { CHUNK_CRC32_SIZE } from './chunk';
 import { ChunkHeaderSequences, ColorTypes, BitDepths } from '../util/constants';
 import { determinePixelColorSize, determineHasAlphaSample } from '../util/pixels';
-import { indexOfSequence, readUint32At } from '../util/typed-array';
+import { indexOfSequence, packByteData, unpackByteData } from '../util/typed-array';
 import { defilter } from '../util/compress-decompress';
 
 const HEADER = 'IDAT';
@@ -30,8 +30,6 @@ export default class IDAT extends Chunk {
     // this.initializeDeflateBlockHeaders();
     const pixelAndFilterSize = this.calculatePixelAndFilterSize();
     this._pixelData = new Uint8ClampedArray(pixelAndFilterSize);
-
-    this.stickIt = null;
   }
 
   /**
@@ -121,13 +119,15 @@ export default class IDAT extends Chunk {
     differs by bit depth
     ? Math.ceil(this._pixelData / (8 / bit depth));
     */
-    const packedPixelData = new Uint8ClampedArray(128);
-    // console.log('packing data -->');
-    this.packByteData(this._pixelData, packedPixelData, this._depth);
+    // const packedPixelData = new Uint8ClampedArray(128);
+    console.log('packing data -->');
+    const packedPixelData = Uint8ClampedArray.from(packByteData(this._pixelData, this._depth));
+    console.log('packed data -->', packedPixelData);
     // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
-    // console.log('adding filter fields -->');
+    console.log('adding filter fields -->');
     const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
     this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
+    // this.prependFilterFields(packedPixelData, pixelAndFilterData, this._depth * 4);
 
     // console.log('deflating pixel data -->');
     const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
@@ -151,25 +151,16 @@ export default class IDAT extends Chunk {
       defilter(uncompressedData, this._width, fullPixelSize);
     }
 
-    // this._pixelData = Uint8ClampedArray.from(uncompressedData);
-
-    // console.log('uncompressedData -->', uncompressedData);
+    console.log('uncompressed data -->', uncompressedData);
     let pixelOnlyData = new Uint8ClampedArray(uncompressedData.length - this._height);
-    // let pixelOnlyData = new Uint8ClampedArray(pixelAndFilterData.length - this._height);
+    // 9? = depth * 4 + 1?
     this.trimFilterFields(uncompressedData, pixelOnlyData, 5);
 
-    if (BitDepths.ONE === this._depth
-      || BitDepths.TWO === this._depth
-      || BitDepths.FOUR === this._depth) {
-        // console.log('load, packed pixel data length -->', pixelOnlyData.length);
-        const unpackedPixelData = new Uint8ClampedArray(pixelOnlyData.length * 8);
-        this.expandByteData(pixelOnlyData, unpackedPixelData, this._depth);
-        this._pixelData = Uint8ClampedArray.from(unpackedPixelData);
-    } else {
-      this._pixelData = Uint8ClampedArray.from(pixelOnlyData);
-    }
+    console.log('pixels only -->', pixelOnlyData);
 
-    // console.log('= --->', this._pixelData);
+    this._pixelData = Uint8ClampedArray.from(unpackByteData(pixelOnlyData, this._depth));
+
+    console.log('= --->', this._pixelData);
   }
 
   trimFilterFields(pixelAndFilterData, pixelOnlyData, scanlineStep) {
@@ -209,57 +200,11 @@ export default class IDAT extends Chunk {
 
   prependFilterFields(pixelOnlyData, pixelAndFilterData, dataRowSize) {
     const scanlineStep = dataRowSize + 1;
-    for (let i = 0, n = 0; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep) {
+    for (let i = 0, n = 0, x = 1; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep, x++) {
       let t = pixelOnlyData.subarray(i, i + dataRowSize);
       let s = [0, ...t];
-      // console.log(i, n, t, s);
+      // console.log(i, n, t, s, x);
       pixelAndFilterData.set(s, n);  // + 1
-    }
-  }
-
-  expandDepth1Data(unexpandedData, expandedData) {
-    console.log('unexpanded data', unexpandedData, unexpandedData.length);
-    let expandedIndex = 0;
-    unexpandedData.forEach((byte) => {
-      expandedData[expandedIndex++] = (byte & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 1 & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 2 & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 3 & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 4 & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 5 & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 6 & 1) === 1 ? 255 : 0;
-      expandedData[expandedIndex++] = (byte >> 7 & 1) === 1 ? 255 : 0;
-    });
-    // console.log('expandedData', expandedData);
-  }
-
-  packDepth1Data(unpackedData, packedData) {
-    let i = 0;
-    let n = 0;
-    let byte = 0;
-    while (i < unpackedData.length) {
-      byte = unpackedData[i++] === 255 ? 1 : 0;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 1;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 2;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 3;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 4;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 5;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 6;
-      byte += (unpackedData[i++] === 255 ? 1 : 0) << 7;
-      // console.log('n -->', n);
-      packedData[n++] = byte;
-    }
-  }
-
-  expandByteData(unexpandedData, expandedData, depth) {
-    if (BitDepths.ONE === depth) {
-      this.expandDepth1Data(unexpandedData, expandedData);
-    }
-  }
-
-  packByteData(unpackedData, packedData, depth) {
-    if (BitDepths.ONE === depth) {
-      this.packDepth1Data(unpackedData, packedData);
     }
   }
 
