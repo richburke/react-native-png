@@ -1,8 +1,16 @@
 import Chunk, { CHUNK_CRC32_SIZE } from './chunk';
 import { ChunkHeaderSequences, ColorTypes, BitDepths } from '../util/constants';
-import { determinePixelColorSize, determineHasAlphaSample } from '../util/pixels';
+import {
+  determinePixelColorSize,
+  determineHasAlphaSample,
+  determineDataRowLength,
+} from '../util/pixels';
 import { indexOfSequence, packByteData, unpackByteData } from '../util/typed-array';
-import { defilter } from '../util/compress-decompress';
+import {
+  defilter,
+  addFilterFields,
+  removeFilterFields,
+} from '../util/compress-decompress';
 
 const HEADER = 'IDAT';
 const DEFLATE_BLOCKS_SIZE = 2;
@@ -125,9 +133,17 @@ export default class IDAT extends Chunk {
     console.log('packed data -->', packedPixelData);
     // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
     console.log('adding filter fields -->');
-    const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
-    this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
-    // this.prependFilterFields(packedPixelData, pixelAndFilterData, this._depth * 4);
+    // const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
+    // this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
+
+    const pixelAndFilterData = Uint8ClampedArray.from(
+      addFilterFields(
+        packedPixelData,
+        determineDataRowLength(this._depth, this._colorType, this._width),
+        this._height
+      )
+    );
+    // this.prependFilterFields(packedPixelData, pixelAndFilterData, this._depth * 4 * 3);
 
     // console.log('deflating pixel data -->');
     const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
@@ -152,60 +168,21 @@ export default class IDAT extends Chunk {
     }
 
     console.log('uncompressed data -->', uncompressedData);
-    let pixelOnlyData = new Uint8ClampedArray(uncompressedData.length - this._height);
-    // 9? = depth * 4 + 1?
-    this.trimFilterFields(uncompressedData, pixelOnlyData, 5);
+
+    const pixelOnlyData = Uint8ClampedArray.from(
+      removeFilterFields(
+        uncompressedData,
+        determineDataRowLength(this._depth, this._colorType, this._width),
+        this._height
+      )
+    );
+    // this.trimFilterFields(uncompressedData, pixelOnlyData, this._depth * 4 * 3 + 1);
 
     console.log('pixels only -->', pixelOnlyData);
 
     this._pixelData = Uint8ClampedArray.from(unpackByteData(pixelOnlyData, this._depth));
 
     console.log('= --->', this._pixelData);
-  }
-
-  trimFilterFields(pixelAndFilterData, pixelOnlyData, scanlineStep) {
-    // const lengthOfDataLine = width * bytesPerPixel;
-    // const lengthOfDataAndFilterLine = lengthOfDataLine + 1;
-    // Size is byte for every row.
-    const dataRowSize = scanlineStep - 1;
-    console.log('pixelData length -->', pixelAndFilterData.length, pixelOnlyData.length);
-
-    /**
-     * for each row,
-     * find the starting index of the row including filter
-     * add one to it
-     * subarray that to data length
-     */
-
-    for (let i = 0, n = 0; i < pixelAndFilterData.length; i += scanlineStep, n += dataRowSize) {
-      let currentIndex = i + 1;
-      let s = pixelAndFilterData.subarray(currentIndex, currentIndex + dataRowSize);
-      // console.log('-->', i, n, s);
-      pixelOnlyData.set(s, n);  // + 1
-    }
-    // const rowSize = width * bytesPerPixel + 1;
-    // let filter;
-    // let scanLine;
-    // let previousRow;
-    // let firstDataByteIndex;
-  
-    // for (let i = 0, n = imageAndFilterData.byteLength; i < n; i += rowSize) {
-    //   filter = imageAndFilterData[i];
-    //   firstDataByteIndex = i + 1;
-  
-    //   scanLine = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
-    // }
-    // return imageAndFilterData.subarray(0);
-  }
-
-  prependFilterFields(pixelOnlyData, pixelAndFilterData, dataRowSize) {
-    const scanlineStep = dataRowSize + 1;
-    for (let i = 0, n = 0, x = 1; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep, x++) {
-      let t = pixelOnlyData.subarray(i, i + dataRowSize);
-      let s = [0, ...t];
-      // console.log(i, n, t, s, x);
-      pixelAndFilterData.set(s, n);  // + 1
-    }
   }
 
   _setSingleValuePixel(index, value) {

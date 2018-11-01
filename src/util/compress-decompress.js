@@ -106,3 +106,28 @@ export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
   }
   console.log(s);
 }
+
+export const removeFilterFields = (pixelAndFilterData, dataRowSize, height) => {
+  const scanlineStep = dataRowSize + 1;
+  let pixelOnlyData = new Uint8ClampedArray(pixelAndFilterData.length - height);
+
+  for (let i = 0, n = 0; i < pixelAndFilterData.length; i += scanlineStep, n += dataRowSize) {
+    let currentIndex = i + 1;
+    let s = pixelAndFilterData.subarray(currentIndex, currentIndex + dataRowSize);
+    // console.log('-->', i, n, s);
+    pixelOnlyData.set(s, n);
+  }
+  return pixelOnlyData;
+};
+
+export const addFilterFields = (pixelOnlyData, dataRowSize, height) => {
+  const scanlineStep = dataRowSize + 1;
+  let pixelAndFilterData = new Uint8ClampedArray(pixelOnlyData.length + height);
+
+  for (let i = 0, n = 0, x = 1; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep, x++) {
+    let t = pixelOnlyData.subarray(i, i + dataRowSize);
+    let s = [0, ...t];
+    pixelAndFilterData.set(s, n);
+  }
+  return pixelAndFilterData;
+};

@@ -57,7 +57,7 @@ export const readUint16At = (buffer, offset, lsb = false) => {
 
   if (lsb) {
     value = buffer[newOffset++] & 255;
-    value += buffer[newOffset++] << 8
+    value += buffer[newOffset++] << 8;
   } else {
     value += buffer[newOffset++] << 8;
     value += buffer[newOffset++] & 255;
@@ -111,8 +111,8 @@ const unpackDepth1Data = (packedData) => {
     unpackedData[i++] = (byte >> 3 & 1) === 1 ? 255 : 0;
     unpackedData[i++] = (byte >> 4 & 1) === 1 ? 255 : 0;
     unpackedData[i++] = (byte >> 5 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 7 & 1) === 1 ? 255 : 0;
     unpackedData[i++] = (byte >> 6 & 1) === 1 ? 255 : 0;
+    unpackedData[i++] = (byte >> 7 & 1) === 1 ? 255 : 0;
   });
   return unpackedData;
 };
