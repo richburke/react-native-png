@@ -7,6 +7,7 @@ import {
   ChunkHeaderSequences,
   BitDepths,
   ColorTypes,
+  PixelLayouts,
   DEFAULT_COMPRESSION,
   DEFAULT_FILTER,
   DEFAULT_INTERLACE,
@@ -144,6 +145,71 @@ const _buildBuffer = (ctxt) => {
   _buffer.set(ctxt, bufView);
 };
 
+const _loadChunk = (ctxt, chunkHeader, bufView) => {
+  let chunks;
+  let chunk;
+  switch (chunkHeader) {
+    case 'IHDR':
+      chunk = _chunks.get(ctxt)[chunkHeader];
+      chunk.load(bufView);
+      _applyMetaData(ctxt, chunk.getMetaData());
+      break;
+
+    case 'tRNS':
+      chunks = _chunks.get(ctxt);
+      chunks.tRNS = new tRNS({
+        colorType: _colorType.get(ctxt),
+        numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
+        maxNumberOfColors: computeMaxNumberOfColors(_depth.get(ctxt)),
+      });
+      _chunks.set(ctxt, chunks);
+      chunk = _chunks.get(ctxt)[chunkHeader];
+      chunk.load(bufView);
+      break;
+
+    case 'PLTE':
+      chunks = _chunks.get(ctxt);
+      chunks.PLTE = new PLTE({
+        maxNumberOfColors: computeMaxNumberOfColors(_depth.get(ctxt)),
+      });
+      _chunks.set(ctxt, chunks);
+      chunk = _chunks.get(ctxt)[chunkHeader];
+      chunk.load(bufView);
+      break;
+
+    case 'bKGD':
+      chunks = _chunks.get(ctxt);
+      chunks.bKGD = new bKGD({
+        colorType: _colorType.get(ctxt),
+      });
+      _chunks.set(ctxt, chunks);
+      chunk = _chunks.get(ctxt)[chunkHeader];
+      chunk.load(bufView);
+      break;
+
+    case 'IDAT':
+      chunk = _chunks.get(ctxt)[chunkHeader];
+      chunk.applyLayoutInformation({
+        width: _width.get(ctxt),
+        height: _height.get(ctxt),
+        depth: _depth.get(ctxt),
+        colorType: _colorType.get(ctxt),
+        numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
+      });
+      chunk.load(bufView);
+      break;
+
+    default:
+  }
+};
+
+/**
+ * November 2
+ * - Get data
+ * - Compare with samples via node
+ * - Get palette
+ */
+
 /**
  * [√] Get palette
  * [√] Fix,
@@ -152,26 +218,30 @@ const _buildBuffer = (ctxt) => {
  * - 2 bit
  * - 4 bit
  * - 8 bit
- * 
  * Get palette
  * Get transparencies
  * Set color
  * Set transparency
  * Swap palette color
+ * Set background
  * [√] Get other basics to work
- * Convert getters to look like plain properties
+ * [x] Convert getters to look like plain properties
  * Limit to 8 bit depth or less
  * Write tests!
  * Clean-up
+ * Write app
+ * - Write sine wave function
+ * - ColorType 0
+ * - ColorType 2
+ * - ColorType 3
+ * - ColorType 4
+ * - ColorType 6
+ * - From scratch
  */
 
 export default class RnPng {
 
-  static PixelLayout = {
-    VALUE: 1,
-    RGB: 3,
-    RGBA: 4,
-  };
+  static PixelLayout = PixelLayouts;
 
   constructor(options = {}) {
     const width = options.width || 0;
@@ -272,7 +342,7 @@ export default class RnPng {
       chunkHeaderIndex = tmpHeaderIndex;
       startIndex = chunkHeaderIndex + 4;
 
-      this._loadChunk(chunkHeader, bufView.subarray(chunkHeaderIndex - CHUNK_LENGTH_SIZE));
+      _loadChunk(this, chunkHeader, bufView.subarray(chunkHeaderIndex - CHUNK_LENGTH_SIZE));
     });
 
     console.log('chunks', this.getChunksUsed());
@@ -282,91 +352,34 @@ export default class RnPng {
     return this;
   }
 
-  /**
-   * @todo
-   * Move out of class
-   */
-  _loadChunk(chunkHeader, bufView) {
-    let chunks;
-    let chunk;
-    switch (chunkHeader) {
-      case 'IHDR':
-        chunk = _chunks.get(this)[chunkHeader];
-        chunk.load(bufView);
-        _applyMetaData(this, chunk.getMetaData());
-        break;
-
-      case 'tRNS':
-        chunks = _chunks.get(this);
-        chunks.tRNS = new tRNS({
-          colorType: _colorType.get(this),
-          numberOfPixels: computeNumberOfPixels(_width.get(this), _height.get(this)),
-          maxNumberOfColors: computeMaxNumberOfColors(_depth.get(this)),
-        });
-        _chunks.set(this, chunks);
-        chunk = _chunks.get(this)[chunkHeader];
-        chunk.load(bufView);
-        break;
-
-      case 'PLTE':
-        chunks = _chunks.get(this);
-        chunks.PLTE = new PLTE({
-          maxNumberOfColors: computeMaxNumberOfColors(_depth.get(this)),
-        });
-        _chunks.set(this, chunks);
-        chunk = _chunks.get(this)[chunkHeader];
-        chunk.load(bufView);
-        break;
-
-      case 'bKGD':
-        chunks = _chunks.get(this);
-        chunks.bKGD = new bKGD({
-          colorType: _colorType.get(this),
-        });
-        _chunks.set(this, chunks);
-        chunk = _chunks.get(this)[chunkHeader];
-        chunk.load(bufView);
-        break;
-
-      case 'IDAT':
-        chunk = _chunks.get(this)[chunkHeader];
-        chunk.applyLayoutInformation({
-          width: _width.get(this),
-          height: _height.get(this),
-          depth: _depth.get(this),
-          colorType: _colorType.get(this),
-          numberOfPixels: computeNumberOfPixels(_width.get(this), _height.get(this)),
-        });
-        chunk.load(bufView);
-        break;
-
-      default:
-    }
-  }
-
   getChunksUsed() {
     return Object.keys(_chunks.get(this)).filter((chunkHeader) => chunkHeader !== 'prefix');
   }
 
   getData(pixelLayout = RnPng.PixelLayout.VALUE) {
-    return _chunks.get(this).IDAT.getData(pixelLayout);
+    const rawPixelData = _chunks.get(this).IDAT.pixelData;
+    const pixelData = ColorTypes.INDEXED === _colorType.get(this)
+      ? _chunks.get(this).PLTE.convertToPixels(rawPixelData)
+      : rawPixelData;
+    return _chunks.get(this).IDAT.getData(pixelLayout, pixelData);
   }
 
   /**
    * @todo
    * Handle different types of PNG formats
    */
-  getPixels() {
-    return _chunks.get(this).IDAT.pixels;
-  }
+  // getPixels() {
+  //   return _chunks.get(this).IDAT.pixels;
+  // }
 
   /**
    * @todo
    * 
    */
   getPalette() {
-   // Change this to copy the palette or provide more consumable version
-    // return Object.keys(_chunks.get(this).PLTE.palette); // Convert to color
+    if ('undefined' === typeof _chunks.get(this).PLTE) {
+      throw new Error('Attempting to get palette indices when there no palette exists');
+    }
     return _chunks.get(this).PLTE.palette;
   }
 
@@ -412,24 +425,24 @@ export default class RnPng {
    * @todo
    * Can this be folded into something else?
    */
-  addColorToPalette(colorData) {
-    // Throw an error if not type 3 (?)
+  // addColorToPalette(colorData) {
+  //   // Throw an error if not type 3 (?)
     
-    if (Array.isArray(colorData)) {
-      _chunks.get(this).PLTE.addColor(colorData);
+  //   if (Array.isArray(colorData)) {
+  //     _chunks.get(this).PLTE.addColor(colorData);
 
-      // Fix!
-      // Need index from palette.
-      _chunks.get(this).tRNS.setTransparency(0, 255);
-      _chunks.get(this).tRNS.setTransparency(1, 255);
-      _chunks.get(this).tRNS.setTransparency(2, 255);
-      _chunks.get(this).tRNS.setTransparency(3, 255);
-    } else {
-      const value = colorData;
-    }
+  //     // Fix!
+  //     // Need index from palette.
+  //     _chunks.get(this).tRNS.setTransparency(0, 255);
+  //     _chunks.get(this).tRNS.setTransparency(1, 255);
+  //     _chunks.get(this).tRNS.setTransparency(2, 255);
+  //     _chunks.get(this).tRNS.setTransparency(3, 255);
+  //   } else {
+  //     const value = colorData;
+  //   }
 
-    return this;
-  }
+  //   return this;
+  // }
 
   /**
    * @todo

@@ -140,6 +140,45 @@ export default class PLTE extends Chunk {
     return new Set(Array.from(new Set(Object.values(this._palette))).sort((a, b) => a - b));
   }
 
+  getColorAt(paletteIndex) {
+    const paletteEntries = Object.entries(this._palette);
+    for (let j = 0; j < paletteEntries.length; j++) {
+      if (paletteIndex === paletteEntries[j][1]) {
+        return unhashPixelKey(paletteEntries[j][0]);
+      }
+    }
+    return undefined;
+  }
+
+  convertToPixels(paletteIndices) {
+    let pixelData = new Uint8ClampedArray(paletteIndices.length * 3);
+    const paletteEntries = Object.entries(this._palette);
+    let n = 0;
+
+    for (let i = 0; i < paletteIndices.length; i++) {
+      let paletteIndex = paletteIndices[i];
+      let pixelKey = null;
+
+      for (let j = 0; j < paletteEntries.length; j++) {
+        if (paletteIndex === paletteEntries[j][1]) {
+          pixelKey = unhashPixelKey(paletteEntries[j][0]);
+          break;
+        }
+      }
+
+      if (!Array.isArray(pixelKey) || 3 !== pixelKey.length) {
+        throw new Error(`Problem retrieving pixel data for palette index ${paletteIndex}`);
+      }
+      pixelData[n++] = pixelKey[0];
+      pixelData[n++] = pixelKey[1];
+      pixelData[n++] = pixelKey[2];
+    }
+
+    console.log('converting to pixels', pixelData);
+
+    return pixelData;
+  }
+
   calculatePayloadSize() {
     console.log('palette length', Object.keys(this._palette).length);
     return Object.keys(this._palette).length * SAMPLES_PER_ENTRY;

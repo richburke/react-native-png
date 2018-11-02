@@ -2,7 +2,8 @@ var fs = require('fs'),
     PNG = require('pngjs').PNG,
     pixelmatch = require('pixelmatch');
 
-const image = 'basi0g04';
+const image = 'basn0g01';
+// const image = 'basi0g04';
 
 var img1 = fs.createReadStream(`PngSuite/${image}.png`).pipe(new PNG()).on('parsed', doneReading),
     img2 = fs.createReadStream(`PngSuite/${image}.png`).pipe(new PNG()).on('parsed', doneReading),
@@ -14,6 +15,7 @@ function doneReading() {
     const x = Uint8Array.from(img1.data);
     console.log('IMG data', x.length);
     console.log(new Set(x));
+    console.log(x);
 
     var diff = new PNG({width: img1.width, height: img1.height});
 

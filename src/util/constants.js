@@ -37,6 +37,13 @@ export const ColorTypes = {
   TRUECOLOR_AND_ALPHA: 6,
 };
 
+export const PixelLayouts = {
+  VALUE: 0,
+  INDEX_VALUE: 1,
+  RGB: 3,
+  RGBA: 4,
+};
+
 export const ScanlineFilterTypes = {
   NONE: 0,
   SUB: 1,

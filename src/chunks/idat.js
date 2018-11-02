@@ -1,6 +1,12 @@
 import Chunk, { CHUNK_CRC32_SIZE } from './chunk';
-import { ChunkHeaderSequences, ColorTypes, BitDepths } from '../util/constants';
 import {
+  ChunkHeaderSequences,
+  ColorTypes,
+  BitDepths,
+  PixelLayouts,
+} from '../util/constants';
+import {
+  computeNumberOfPixels,
   determinePixelColorSize,
   determineHasAlphaSample,
   determineDataRowLength,
@@ -15,8 +21,6 @@ import {
 const HEADER = 'IDAT';
 const DEFLATE_BLOCKS_SIZE = 2;
 const ZLIB_HEADER_SIZE = 5;
-const ADLER_BASE  = 65521; // Largest prime smaller than 65536
-const ADLER_NMAX = 5552;  // Largest n such that 255n(n + 1) / 2 + (n + 1)(_BASE - 1) <= 2^32 - 1
 const ADLER_CHECKSUM_SIZE = 4;
 
 export default class IDAT extends Chunk {
@@ -49,7 +53,145 @@ export default class IDAT extends Chunk {
   //   return this._pixelData;
   // }
 
-  getData(inRgbaFormat) {
+  formatPixelsForColorType0(pixelData, numberOfValuesInLayout) {
+    const formattedData = new Uint8ClampedArray(pixelData.length * numberOfValuesInLayout);
+    let n = 0;
+    pixelData.forEach((value) => {
+      for (let i = 0; i < numberOfValuesInLayout; i++) {
+        formattedData[n++] = value;
+      }
+    });
+    return formattedData;
+  }
+
+  formatPixelsForColorType2(pixelData, numberOfValuesInLayout, width, height) {
+    if (3 === numberOfValuesInLayout) {
+      return pixelData;
+    }
+
+    const numberOfPixels = computeNumberOfPixels(width, height);
+    const formattedData = new Uint8ClampedArray(pixelData.length + numberOfPixels);
+    let n = 0;
+    pixelData.forEach((value) => {
+      formattedData[n++] = value;
+      formattedData[n++] = 255;
+    });
+    return formattedData;
+  }
+
+  formatPixelsForColorType3(pixelData, numberOfValuesInLayout, width, height) {
+    console.log('formatting for 3', pixelData);
+    if (3 === numberOfValuesInLayout) {
+      return pixelData;
+    }
+
+    const numberOfPixels = computeNumberOfPixels(width, height);
+    const formattedData = new Uint8ClampedArray(pixelData.length + numberOfPixels);
+    let i = 0;
+    let n = 0;
+
+    while (i < pixelData.length) {
+      formattedData[n++] = pixelData[i++];
+      formattedData[n++] = pixelData[i++];
+      formattedData[n++] = pixelData[i++];
+      formattedData[n++] = 255; // Alpha
+    }
+
+    return formattedData;
+  }
+
+  formatPixelsForColorType4(pixelData, numberOfValuesInLayout, width, height) {
+    let formattedData;
+
+    if (3 === numberOfValuesInLayout) {
+      const numberOfPixels = computeNumberOfPixels(width, height);
+      formattedData = new Uint8ClampedArray(numberOfPixels * 3);
+      let i = 0;
+      let n = 0;
+  
+      while (i < pixelData.length) {
+        let luminousity = pixelData[i++];
+        formattedData[n++] = luminousity;
+        formattedData[n++] = luminousity;
+        formattedData[n++] = luminousity;
+        i++; // Alpha, which we'll skip.
+      }
+    } else {
+      formattedData = new Uint8ClampedArray(pixelData.length * 2);
+      let i = 0;
+      let n = 0;
+  
+      while (i < pixelData.length) {
+        let luminousity = pixelData[i++];
+        formattedData[n++] = luminousity;
+        formattedData[n++] = luminousity;
+        formattedData[n++] = luminousity;
+        formattedData[n++] = pixelData[i++]; // Alpha
+      }
+    }
+
+    return formattedData;
+  }
+
+  formatPixelsForColorType6(pixelData, numberOfValuesInLayout, width, height) {
+    if (4 === numberOfValuesInLayout) {
+      return pixelData;
+    }
+
+    const numberOfPixels = computeNumberOfPixels(width, height);
+    const formattedData = new Uint8ClampedArray(pixelData.length - numberOfPixels);
+    let i = 0;
+    let n = 0;
+
+    while (i < pixelData.length) {
+      formattedData[n++] = pixelData[i++];
+      formattedData[n++] = pixelData[i++];
+      formattedData[n++] = pixelData[i++];
+      i++;  // Alpha, which we'll skip.
+    }
+
+    return formattedData;
+  }
+
+  formatPixels(colorType, width, height, pixelLayout, pixelData) {
+    const numberOfValuesInLayout = PixelLayouts.RGB === pixelLayout
+    ? 3
+    : 4;
+    if (ColorTypes.GRAYSCALE === colorType) {
+      return this.formatPixelsForColorType0(pixelData, numberOfValuesInLayout);
+    }
+    if (ColorTypes.TRUECOLOR === colorType) {
+      return this.formatPixelsForColorType2(pixelData, numberOfValuesInLayout, width, height);
+    }
+    if (ColorTypes.INDEXED === colorType) {
+      return this.formatPixelsForColorType3(pixelData, numberOfValuesInLayout, width, height);
+    }
+    if (ColorTypes.GRAYSCALE_AND_ALPHA === colorType) {
+      return this.formatPixelsForColorType4(pixelData, numberOfValuesInLayout, width, height);
+    }
+    if (ColorTypes.TRUECOLOR_AND_ALPHA === colorType) {
+      return this.formatPixelsForColorType6(pixelData, numberOfValuesInLayout, width, height);
+    }
+  }
+
+  getData(pixelLayout, pixelData) {
+    if (PixelLayouts.INDEX_VALUE === pixelLayout) {
+      if (ColorTypes.INDEXED !== this._colorType) {
+        throw new Error('Attempt to get palette indices from a non-indexed image');
+      } else {
+        return pixelData;
+      }
+    }
+    if (PixelLayouts.RGB === pixelLayout || PixelLayouts.RGBA === pixelLayout) {
+      return this.formatPixels(this._colorType, this._width, this._height, pixelLayout, pixelData);
+    }
+    return pixelData;
+  }
+
+  /**
+   * Only for use by RnPng class.
+   */
+  get pixelData() {
     return this._pixelData;
   }
 
@@ -80,40 +222,6 @@ export default class IDAT extends Chunk {
     this._hasAlphaSample = determineHasAlphaSample(this._colorType);
   }
 
-  /**
-   * @todo
-   * Move to a separate library, maybe something for all compression-decompression.
-   */
-  // initializeDeflateBlockHeaders() {
-  //   const pixelAndFilterSize = this.calculatePixelAndFilterSize();
-
-  //   for (let i = 0; (i << 16) - 1 < pixelAndFilterSize; i++) {
-  //     console.log('calculating deflate...', i, (i << 16) - 1, i + 0xffff, pixelAndFilterSize);
-  //     let size, bits;
-  //     if (i + 0xffff < pixelAndFilterSize) {
-  //       console.log('deflate less than')
-  //       size = 0xffff;
-  //       bits = 0x00;
-  //       // bits = "\x00";
-
-  //     } else {
-  //       console.log('deflate greater than or equal')
-
-  //       size = pixelAndFilterSize - (i << 16) - i;
-  //       bits = 0x01;
-  //       // bits = "\x01";
-
-  //     }
-  //     let offset = 8 + 2 + (i << 16) + (i << 2);
-  //     offset = this.buffer.writeUint8At(offset, bits);
-  //     offset = this.buffer.writeUint16At(offset, size, true);
-  //     this.buffer.writeUint16At(offset, ~size, true);
-  //     console.log('deflate headers, rnpng ->', 8 + 2 + (i << 16) + (i << 2), bits, size);
-  //     // write(this.buffer, 8 + 2 + (i << 16) + (i << 2), bits, byte2lsb(size), byte2lsb(~size));
-  //     // write(this.buffer, 8 + 2 + (i << 16) + (i << 2), bits, byte2lsb(size), byte2lsb(~size));
-  //   }
-  // }
-
   update() {
     const chunkSize = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
@@ -129,7 +237,9 @@ export default class IDAT extends Chunk {
     */
     // const packedPixelData = new Uint8ClampedArray(128);
     console.log('packing data -->');
-    const packedPixelData = Uint8ClampedArray.from(packByteData(this._pixelData, this._depth));
+    const packedPixelData = Uint8ClampedArray.from(
+      packByteData(this._pixelData, this._depth, ColorTypes.INDEXED !== this._colorType)
+    );
     console.log('packed data -->', packedPixelData);
     // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
     console.log('adding filter fields -->');
@@ -180,7 +290,9 @@ export default class IDAT extends Chunk {
 
     console.log('pixels only -->', pixelOnlyData);
 
-    this._pixelData = Uint8ClampedArray.from(unpackByteData(pixelOnlyData, this._depth));
+    this._pixelData = Uint8ClampedArray.from(
+      unpackByteData(pixelOnlyData, this._depth, ColorTypes.INDEXED !== this._colorType)
+    );
 
     console.log('= --->', this._pixelData);
   }
@@ -255,28 +367,28 @@ export default class IDAT extends Chunk {
     // return (this._numberOfPixels * this._pixelSize + 1) * this._height;
   }
 
-  calculateAdler32() {
-    let s1 = 1;
-    let s2 = 0;
-    let n = ADLER_NMAX;
+  // calculateAdler32() {
+  //   let s1 = 1;
+  //   let s2 = 0;
+  //   let n = ADLER_NMAX;
   
-    for (let y = 0; y < this._height; y++) {
-      for (let x = -1; x < this._width; x++) {
-        s1 = s1 + this._pixelData[this.translateXyToIndex(x, y)];
-        s2 = s2 + s1;
-        n = n - 1;
-        if (n == 0) {
-          s1 %= ADLER_BASE;
-          s2 %= ADLER_BASE;
-          n = ADLER_NMAX;
-        }
-      }
-    }
-    s1 = s1 % ADLER_BASE;
-    s2 = s2 % ADLER_BASE;
+  //   for (let y = 0; y < this._height; y++) {
+  //     for (let x = -1; x < this._width; x++) {
+  //       s1 = s1 + this._pixelData[this.translateXyToIndex(x, y)];
+  //       s2 = s2 + s1;
+  //       n = n - 1;
+  //       if (n == 0) {
+  //         s1 %= ADLER_BASE;
+  //         s2 %= ADLER_BASE;
+  //         n = ADLER_NMAX;
+  //       }
+  //     }
+  //   }
+  //   s1 = s1 % ADLER_BASE;
+  //   s2 = s2 % ADLER_BASE;
 
-    return [s1, s2];
-  }
+  //   return [s1, s2];
+  // }
 
   calculatePayloadSize(pixelAndFilterSize = -1) {
     if (pixelAndFilterSize === -1) {

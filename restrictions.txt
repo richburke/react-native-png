@@ -1,4 +1,5 @@
 • Size!
+• Does not support bit depths of 16 or above.
 • Can only handle images with a single IDAT chunk.
-• The only supported chunks for display are: IHDR, IDAT, PLTE, tRNS, bKGD, IEND
-
+• The supported chunks are: IHDR, IDAT, PLTE, tRNS, bKGD, IEND.
+• Does not support PLTE for images that are not of color type 3.

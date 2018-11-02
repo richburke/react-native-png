@@ -101,26 +101,50 @@ export const readUint32At = (buffer, offset, lsb = false) => {
   return value;
 }
 
-const unpackDepth1Data = (packedData) => {
+const unpackDepth1Data = (packedData, translateValues) => {
+  const values = [0, 255];
   let unpackedData = new Uint8ClampedArray(packedData.length * 8);
-  let i = 0;
+  let n = 0;
+
   packedData.forEach((byte) => {
-    unpackedData[i++] = (byte & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 1 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 2 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 3 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 4 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 5 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 6 & 1) === 1 ? 255 : 0;
-    unpackedData[i++] = (byte >> 7 & 1) === 1 ? 255 : 0;
+    let pixel1 = byte & 1;
+    let pixel2 = byte >> 1 & 1;
+    let pixel3 = byte >> 2 & 1;
+    let pixel4 = byte >> 3 & 1;
+    let pixel5 = byte >> 4 & 1;
+    let pixel6 = byte >> 5 & 1;
+    let pixel7 = byte >> 6 & 1;
+    let pixel8 = byte >> 7 & 1;
+
+    if (translateValues) {
+      unpackedData[n++] = values[pixel1];
+      unpackedData[n++] = values[pixel2];
+      unpackedData[n++] = values[pixel3];
+      unpackedData[n++] = values[pixel4];
+      unpackedData[n++] = values[pixel5];
+      unpackedData[n++] = values[pixel6];
+      unpackedData[n++] = values[pixel7];
+      unpackedData[n++] = values[pixel8];
+    } else {
+      unpackedData[n++] = pixel1;
+      unpackedData[n++] = pixel2;
+      unpackedData[n++] = pixel3;
+      unpackedData[n++] = pixel4;
+      unpackedData[n++] = pixel5;
+      unpackedData[n++] = pixel6;
+      unpackedData[n++] = pixel7;
+      unpackedData[n++] = pixel8;
+    }
   });
+
   return unpackedData;
 };
 
-const unpackDepth2Data = (packedData) => {
+const unpackDepth2Data = (packedData, translateValues) => {
   const values = [0, 85, 170, 255];
   let unpackedData = new Uint8ClampedArray(packedData.length * 4);
-  let i = 0;
+  let n = 0;
+
   packedData.forEach((byte) => {
     let pixel1 = 0;
     let pixel2 = 0;
@@ -136,18 +160,26 @@ const unpackDepth2Data = (packedData) => {
     pixel4 += (byte >> 6 & 1) === 1 ? 1 : 0;
     pixel4 += (byte >> 7 & 1) === 1 ? 2 : 0;
 
-    unpackedData[i++] = values[pixel1];
-    unpackedData[i++] = values[pixel2];
-    unpackedData[i++] = values[pixel3];
-    unpackedData[i++] = values[pixel4];
+    if (translateValues) {
+      unpackedData[n++] = values[pixel1];
+      unpackedData[n++] = values[pixel2];
+      unpackedData[n++] = values[pixel3];
+      unpackedData[n++] = values[pixel4];
+    } else {
+      unpackedData[n++] = pixel1;
+      unpackedData[n++] = pixel2;
+      unpackedData[n++] = pixel3;
+      unpackedData[n++] = pixel4;
+    }
   });
   return unpackedData;
 };
 
-const unpackDepth4Data = (packedData) => {
+const unpackDepth4Data = (packedData, translateValues) => {
   const values = [0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255];
   let unpackedData = new Uint8ClampedArray(packedData.length * 2);
-  let i = 0;
+  let n = 0;
+
   packedData.forEach((byte) => {
     let pixel1 = 0;
     let pixel2 = 0;
@@ -161,10 +193,13 @@ const unpackDepth4Data = (packedData) => {
     pixel2 += (byte >> 6 & 1) === 1 ? 4 : 0;
     pixel2 += (byte >> 7 & 1) === 1 ? 8 : 0;
 
-    console.log('bytes -->', pixel1, pixel2);
-
-    unpackedData[i++] = values[pixel1];
-    unpackedData[i++] = values[pixel2];
+    if (translateValues) {
+      unpackedData[n++] = values[pixel1];
+      unpackedData[n++] = values[pixel2];
+    } else {
+      unpackedData[n++] = pixel1;
+      unpackedData[n++] = pixel2;
+    }
   });
   return unpackedData;
 };
@@ -173,21 +208,22 @@ const packDepth1Data= (unpackedData) => {
   let packedData = new Uint8ClampedArray(unpackedData.length / 8);
   let i = 0;
   let n = 0;
+
   while (i < unpackedData.length) {
-    let byte = unpackedData[i++] === 255 ? 1 : 0;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 1;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 2;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 3;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 4;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 5;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 6;
-    byte += (unpackedData[i++] === 255 ? 1 : 0) << 7;
+    let byte = unpackedData[i++] > 0 ? 1 : 0;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 1;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 2;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 3;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 4;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 5;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 6;
+    byte += (unpackedData[i++] > 0 ? 1 : 0) << 7;
     packedData[n++] = byte;
   }
   return packedData;
 };
 
-const packDepth2Data = (unpackedData) => {
+const packDepth2Data = (unpackedData, translateValues) => {
   const values = {
     0: 0,
     85: 1,
@@ -199,16 +235,29 @@ const packDepth2Data = (unpackedData) => {
   let n = 0;
 
   while (i < unpackedData.length) {
-    let byte = values[unpackedData[i++]];
-    byte += values[unpackedData[i++]] << 2;
-    byte += values[unpackedData[i++]] << 4;
-    byte += values[unpackedData[i++]] << 6;
+    let pixel1 = unpackedData[i++];
+    let pixel2 = unpackedData[i++];
+    let pixel3 = unpackedData[i++];
+    let pixel4 = unpackedData[i++];
+    let byte;
+
+    if (translateValues) {
+      byte = values[pixel1];
+      byte += values[pixel2] << 2;
+      byte += values[pixel3] << 4;
+      byte += values[pixel4] << 6;
+    } else {
+      byte = pixel1;
+      byte += pixel2 << 2;
+      byte += pixel3 << 4;
+      byte += pixel4 << 6;
+    }
     packedData[n++] = byte;
   }
   return packedData;
 };
 
-const packDepth4Data = (unpackedData) => {
+const packDepth4Data = (unpackedData, translateValues) => {
   const values = {
     0: 0, 
     17: 1,
@@ -232,35 +281,44 @@ const packDepth4Data = (unpackedData) => {
   let n = 0;
 
   while (i < unpackedData.length) {
-    let byte = values[unpackedData[i++]];
-    byte += values[unpackedData[i++]] << 4;
+    let pixel1 = unpackedData[i++];
+    let pixel2 = unpackedData[i++];
+    let byte;
+
+    if (translateValues) {
+      byte = values[pixel1];
+      byte += values[pixel2] << 4;
+    } else {
+      byte = pixel1;
+      byte += pixel2 << 4;
+    }
     packedData[n++] = byte;
   }
   return packedData;
 };
 
-export const unpackByteData = (packedData, depth) => {
+export const unpackByteData = (packedData, depth, translateValues = false) => {
   if (BitDepths.ONE === depth) {
-    return unpackDepth1Data(packedData);
+    return unpackDepth1Data(packedData, translateValues);
   }
   if (BitDepths.TWO === depth) {
-    return unpackDepth2Data(packedData);
+    return unpackDepth2Data(packedData, translateValues);
   }
   if (BitDepths.FOUR === depth) {
-    return unpackDepth4Data(packedData);
+    return unpackDepth4Data(packedData, translateValues);
   }
   return packedData;
 };
 
-export const packByteData = (unpackedData, depth) => {
+export const packByteData = (unpackedData, depth, translateValues = false) => {
   if (BitDepths.ONE === depth) {
     return packDepth1Data(unpackedData);
   }
   if (BitDepths.TWO === depth) {
-    return packDepth2Data(unpackedData);
+    return packDepth2Data(unpackedData, translateValues);
   }
   if (BitDepths.FOUR === depth) {
-    return packDepth4Data(unpackedData);
+    return packDepth4Data(unpackedData, translateValues);
   }
   return unpackedData;
 };
