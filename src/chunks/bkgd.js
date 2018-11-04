@@ -1,5 +1,6 @@
 import Chunk from './chunk';
 import { ColorTypes } from '../util/constants';
+import { determineBackgroundSamplesPerEntry } from '../util/png-pixels';
 
 const HEADER = 'bKGD';
 
@@ -9,7 +10,7 @@ export default class bKGD extends Chunk {
     
     this._colorType = options.colorType;
     // This will need to change if we support greater than 8 bit samples
-    this._backgroundColor = new Uint8ClampedArray(this._determineSamples(this._colorType));
+    this._backgroundColor = new Uint8ClampedArray(determineBackgroundSamplesPerEntry(this._colorType));
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
@@ -17,15 +18,6 @@ export default class bKGD extends Chunk {
 
   set colorType(value) {
     this._colorType = value;
-  }
-
-  _determineNumberOfSamples(colorType) {
-    if (ColorTypes.INDEXED === colorType
-      || ColorTypes.GRAYSCALE === colorType
-      || ColorTypes.GRAYSCALE_AND_ALPHA == colorType) {
-      return 1;
-    }
-    return 3;
   }
 
   update() {
@@ -58,7 +50,7 @@ export default class bKGD extends Chunk {
     if (ColorTypes.INDEXED === this._colorType) {
       color.push(this.buffer.readUint8At(dataOffset));
     } else {
-      const numberOfSamples = this._determineNumberOfSamples(this._colorType);
+      const numberOfSamples = determineBackgroundSamplesPerEntry(this._colorType);
       for (let i = 0, offset = dataOffset; i < numberOfSamples; i++, offset += 2) {
         color.push(this.buffer.readUint16At(dataOffset));
       }
@@ -67,9 +59,9 @@ export default class bKGD extends Chunk {
   }
 
   setBackgroundColor(color) {
-    const requiredSamples = this._determineNumberOfSamples(this._colorType);
+    const requiredSamples = determineBackgroundSamplesPerEntry(this._colorType);
     if (color.length !== requiredSamples) {
-      throw new Error(`Incorrect number of samples supplied for backgroud (${requiredSamples} expected)`);
+      throw new Error(`Incorrect number of samples supplied for background (${requiredSamples} expected)`);
     }
 
     for (let i = 0; i < color.length; i++) {
@@ -85,7 +77,7 @@ export default class bKGD extends Chunk {
     if (ColorTypes.INDEXED === this._colorType) {
       return 1;
     } else {
-      return this._determineNumberOfSamples(this._colorType) * 2;
+      return determineBackgroundSamplesPerEntry(this._colorType) * 2;
     }
   }
 

@@ -6,12 +6,16 @@ import {
   PixelLayouts,
 } from '../util/constants';
 import {
-  computeNumberOfPixels,
   determinePixelColorSize,
   determineHasAlphaSample,
   determineDataRowLength,
-} from '../util/pixels';
-import { indexOfSequence, packByteData, unpackByteData } from '../util/typed-array';
+  formatPixels,
+} from '../util/png-pixels';
+import {
+  indexOfSequence,
+  packByteData,
+  unpackByteData
+} from '../util/typed-array';
 import {
   defilter,
   addFilterFields,
@@ -39,142 +43,11 @@ export default class IDAT extends Chunk {
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
-    // this.initializeDeflateBlockHeaders();
     const pixelAndFilterSize = this.calculatePixelAndFilterSize();
     this._pixelData = new Uint8ClampedArray(pixelAndFilterSize);
   }
 
-  /**
-   * @todo
-   * Remove.  Just for testing
-   */
-  // get pixels() {
-  //   // This needs to be fixed to just return pixels
-  //   return this._pixelData;
-  // }
-
-  formatPixelsForColorType0(pixelData, numberOfValuesInLayout) {
-    const formattedData = new Uint8ClampedArray(pixelData.length * numberOfValuesInLayout);
-    let n = 0;
-    pixelData.forEach((value) => {
-      for (let i = 0; i < numberOfValuesInLayout; i++) {
-        formattedData[n++] = value;
-      }
-    });
-    return formattedData;
-  }
-
-  formatPixelsForColorType2(pixelData, numberOfValuesInLayout, width, height) {
-    if (3 === numberOfValuesInLayout) {
-      return pixelData;
-    }
-
-    const numberOfPixels = computeNumberOfPixels(width, height);
-    const formattedData = new Uint8ClampedArray(pixelData.length + numberOfPixels);
-    let n = 0;
-    pixelData.forEach((value) => {
-      formattedData[n++] = value;
-      formattedData[n++] = 255;
-    });
-    return formattedData;
-  }
-
-  formatPixelsForColorType3(pixelData, numberOfValuesInLayout, width, height) {
-    console.log('formatting for 3', pixelData);
-    if (3 === numberOfValuesInLayout) {
-      return pixelData;
-    }
-
-    const numberOfPixels = computeNumberOfPixels(width, height);
-    const formattedData = new Uint8ClampedArray(pixelData.length + numberOfPixels);
-    let i = 0;
-    let n = 0;
-
-    while (i < pixelData.length) {
-      formattedData[n++] = pixelData[i++];
-      formattedData[n++] = pixelData[i++];
-      formattedData[n++] = pixelData[i++];
-      formattedData[n++] = 255; // Alpha
-    }
-
-    return formattedData;
-  }
-
-  formatPixelsForColorType4(pixelData, numberOfValuesInLayout, width, height) {
-    let formattedData;
-
-    if (3 === numberOfValuesInLayout) {
-      const numberOfPixels = computeNumberOfPixels(width, height);
-      formattedData = new Uint8ClampedArray(numberOfPixels * 3);
-      let i = 0;
-      let n = 0;
-  
-      while (i < pixelData.length) {
-        let luminousity = pixelData[i++];
-        formattedData[n++] = luminousity;
-        formattedData[n++] = luminousity;
-        formattedData[n++] = luminousity;
-        i++; // Alpha, which we'll skip.
-      }
-    } else {
-      formattedData = new Uint8ClampedArray(pixelData.length * 2);
-      let i = 0;
-      let n = 0;
-  
-      while (i < pixelData.length) {
-        let luminousity = pixelData[i++];
-        formattedData[n++] = luminousity;
-        formattedData[n++] = luminousity;
-        formattedData[n++] = luminousity;
-        formattedData[n++] = pixelData[i++]; // Alpha
-      }
-    }
-
-    return formattedData;
-  }
-
-  formatPixelsForColorType6(pixelData, numberOfValuesInLayout, width, height) {
-    if (4 === numberOfValuesInLayout) {
-      return pixelData;
-    }
-
-    const numberOfPixels = computeNumberOfPixels(width, height);
-    const formattedData = new Uint8ClampedArray(pixelData.length - numberOfPixels);
-    let i = 0;
-    let n = 0;
-
-    while (i < pixelData.length) {
-      formattedData[n++] = pixelData[i++];
-      formattedData[n++] = pixelData[i++];
-      formattedData[n++] = pixelData[i++];
-      i++;  // Alpha, which we'll skip.
-    }
-
-    return formattedData;
-  }
-
-  formatPixels(colorType, width, height, pixelLayout, pixelData) {
-    const numberOfValuesInLayout = PixelLayouts.RGB === pixelLayout
-    ? 3
-    : 4;
-    if (ColorTypes.GRAYSCALE === colorType) {
-      return this.formatPixelsForColorType0(pixelData, numberOfValuesInLayout);
-    }
-    if (ColorTypes.TRUECOLOR === colorType) {
-      return this.formatPixelsForColorType2(pixelData, numberOfValuesInLayout, width, height);
-    }
-    if (ColorTypes.INDEXED === colorType) {
-      return this.formatPixelsForColorType3(pixelData, numberOfValuesInLayout, width, height);
-    }
-    if (ColorTypes.GRAYSCALE_AND_ALPHA === colorType) {
-      return this.formatPixelsForColorType4(pixelData, numberOfValuesInLayout, width, height);
-    }
-    if (ColorTypes.TRUECOLOR_AND_ALPHA === colorType) {
-      return this.formatPixelsForColorType6(pixelData, numberOfValuesInLayout, width, height);
-    }
-  }
-
-  getData(pixelLayout, pixelData) {
+  getData(pixelLayout, pixelData, trnsData) {
     if (PixelLayouts.INDEX_VALUE === pixelLayout) {
       if (ColorTypes.INDEXED !== this._colorType) {
         throw new Error('Attempt to get palette indices from a non-indexed image');
@@ -183,7 +56,7 @@ export default class IDAT extends Chunk {
       }
     }
     if (PixelLayouts.RGB === pixelLayout || PixelLayouts.RGBA === pixelLayout) {
-      return this.formatPixels(this._colorType, this._width, this._height, pixelLayout, pixelData);
+      return formatPixels(this._colorType, this._width, this._height, pixelLayout, pixelData, trnsData);
     }
     return pixelData;
   }
@@ -246,14 +119,18 @@ export default class IDAT extends Chunk {
     // const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
     // this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
 
-    const pixelAndFilterData = Uint8ClampedArray.from(
-      addFilterFields(
-        packedPixelData,
-        determineDataRowLength(this._depth, this._colorType, this._width),
-        this._height
-      )
-    );
-    // this.prependFilterFields(packedPixelData, pixelAndFilterData, this._depth * 4 * 3);
+    let pixelAndFilterData;
+    if (this._depth >= BitDepths.EIGHT && ColorTypes.INDEXED !== this._colorType) {
+      pixelAndFilterData = Uint8ClampedArray.from(
+        addFilterFields(
+          packedPixelData,
+          determineDataRowLength(this._depth, this._colorType, this._width),
+          this._height
+        )
+      );
+    } else {
+      pixelAndFilterData = packedPixelData;
+    }
 
     // console.log('deflating pixel data -->');
     const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
@@ -273,22 +150,23 @@ export default class IDAT extends Chunk {
     const uncompressedData = this._zlibLib.inflate(compressedZlibData);
     const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
 
+    // console.log('uncompressed data -->', uncompressedData);
+
+    let pixelOnlyData;
     if (this._depth >= BitDepths.EIGHT && ColorTypes.INDEXED !== this._colorType) {
       defilter(uncompressedData, this._width, fullPixelSize);
+      pixelOnlyData = Uint8ClampedArray.from(
+        removeFilterFields(
+          uncompressedData,
+          determineDataRowLength(this._depth, this._colorType, this._width),
+          this._height
+        )
+      );
+    } else {
+      pixelOnlyData = uncompressedData;
     }
 
-    console.log('uncompressed data -->', uncompressedData);
-
-    const pixelOnlyData = Uint8ClampedArray.from(
-      removeFilterFields(
-        uncompressedData,
-        determineDataRowLength(this._depth, this._colorType, this._width),
-        this._height
-      )
-    );
-    // this.trimFilterFields(uncompressedData, pixelOnlyData, this._depth * 4 * 3 + 1);
-
-    console.log('pixels only -->', pixelOnlyData);
+    // console.log('pixels only -->', pixelOnlyData);
 
     this._pixelData = Uint8ClampedArray.from(
       unpackByteData(pixelOnlyData, this._depth, ColorTypes.INDEXED !== this._colorType)
@@ -331,17 +209,17 @@ export default class IDAT extends Chunk {
     return this;
   }
 
-  /**
-   * It's possible for a Truecolor and a Truecolor (2) with alpha (6) to
-   * have paleltte indices as well, but that's not supported in this
-   * implementation.
-   */
-  getPixelPaletteIndices() {
-    if (this._colorType !== ColorTypes.INDEXED) {
-      return [];
-    }
-    return new Set(Array.from(new Set(this._pixelData)).sort((a, b) => a - b));
-  }
+  // /**
+  //  * It's possible for a Truecolor and a Truecolor (2) with alpha (6) to
+  //  * have palette indices as well, but that's not supported in this
+  //  * implementation.
+  //  */
+  // getPixelPaletteIndices() {
+  //   if (this._colorType !== ColorTypes.INDEXED) {
+  //     return [];
+  //   }
+  //   return new Set(Array.from(new Set(this._pixelData)).sort((a, b) => a - b));
+  // }
 
   translateXyToIndex(x, y) {
     const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);

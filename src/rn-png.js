@@ -14,7 +14,7 @@ import {
 } from './util/constants';
 import { CHUNK_LENGTH_SIZE } from './chunks/chunk';
 import { indexOfSequence } from './util/typed-array';
-import { computeNumberOfPixels, computeMaxNumberOfColors } from './util/pixels';
+import { computeNumberOfPixels, computeMaxNumberOfColors } from './util/png-pixels';
 import Prefix from './chunks/prefix';
 import IHDR from './chunks/ihdr';
 import tRNS from './chunks/trns';
@@ -37,6 +37,10 @@ let _zlibLib = new WeakMap();
 const _applyMetaData = (ctxt, metaData) => {
   const validBitDepths = Object.values(BitDepths);
   if (!validBitDepths.includes(metaData.depth)) {
+    throw new Error('Invalid bit depth');
+  }
+
+  if (metaData.depth > BitDepths.EIGHT) {
     throw new Error('Invalid bit depth');
   }
 
@@ -148,6 +152,7 @@ const _buildBuffer = (ctxt) => {
 const _loadChunk = (ctxt, chunkHeader, bufView) => {
   let chunks;
   let chunk;
+  console.log(`I have a ${chunkHeader}`);
   switch (chunkHeader) {
     case 'IHDR':
       chunk = _chunks.get(ctxt)[chunkHeader];
@@ -164,6 +169,9 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       });
       _chunks.set(ctxt, chunks);
       chunk = _chunks.get(ctxt)[chunkHeader];
+
+      console.log(chunkHeader, bufView);
+
       chunk.load(bufView);
       break;
 
@@ -188,6 +196,9 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       break;
 
     case 'IDAT':
+    console.log(chunkHeader, bufView);
+
+
       chunk = _chunks.get(ctxt)[chunkHeader];
       chunk.applyLayoutInformation({
         width: _width.get(ctxt),
@@ -204,29 +215,38 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
 };
 
 /**
- * November 2
- * - Get data
+ * November 4
+ * - Write transparencies for color types 0 & 2
+ * - Set transparency
+ * - Set background
+ * - Set pixel
+ */
+/**
+ * November 6
  * - Compare with samples via node
- * - Get palette
  */
 
 /**
  * [√] Get palette
  * [√] Fix,
- * Get data
- * - 1 bit
- * - 2 bit
- * - 4 bit
- * - 8 bit
- * Get palette
- * Get transparencies
- * Set color
+ * [√] Get data
+ * - [√] 1 bit
+ * - [√] 2 bit
+ * - [√] 4 bit
+ * - [√] 8 bit
+ * [√] Get palette
+ * [√] Get transparencies
+ * [√] Set palette color
+ * [√] Swap palette color
+ * [] Get background
  * Set transparency
- * Swap palette color
  * Set background
+ * Set pixel
  * [√] Get other basics to work
+ * [√] Get transparencies to work
+ * [√] Get backgrounds to work
  * [x] Convert getters to look like plain properties
- * Limit to 8 bit depth or less
+ * [√] Limit to 8 bit depth or less
  * Write tests!
  * Clean-up
  * Write app
@@ -358,37 +378,23 @@ export default class RnPng {
 
   getData(pixelLayout = RnPng.PixelLayout.VALUE) {
     const rawPixelData = _chunks.get(this).IDAT.pixelData;
+
+    console.log('getData', rawPixelData);
+
     const pixelData = ColorTypes.INDEXED === _colorType.get(this)
       ? _chunks.get(this).PLTE.convertToPixels(rawPixelData)
       : rawPixelData;
-    return _chunks.get(this).IDAT.getData(pixelLayout, pixelData);
+    const trnsData = 'undefined' !== typeof _chunks.get(this).tRNS
+      ? _chunks.get(this).tRNS.getTransparencies()
+      : [];
+    return _chunks.get(this).IDAT.getData(pixelLayout, pixelData, trnsData);
   }
 
-  /**
-   * @todo
-   * Handle different types of PNG formats
-   */
-  // getPixels() {
-  //   return _chunks.get(this).IDAT.pixels;
-  // }
-
-  /**
-   * @todo
-   * 
-   */
   getPalette() {
     if ('undefined' === typeof _chunks.get(this).PLTE) {
-      throw new Error('Attempting to get palette indices when there no palette exists');
+      throw new Error('Attempting to get palette indices when no palette exists');
     }
-    return _chunks.get(this).PLTE.palette;
-  }
-
-  getPaletteIndices() {
-    console.log('PLTE indices', _chunks.get(this).PLTE.getPixelPaletteIndices());
-    if ('undefined' === typeof _chunks.get(this).PLTE) {
-      throw new Error('Attempting to get palette indices when there no palette exists');
-    }
-    return _chunks.get(this).IDAT.getPixelPaletteIndices();
+    return _chunks.get(this).PLTE.getPalette();
   }
 
   /**
@@ -396,67 +402,31 @@ export default class RnPng {
    * 
    */
   getOpacities() {
-
+    if ('undefined' !== typeof _chunks.get(this).tRNS) {
+      return _chunks.get(this).tRNS.getTransparencies();
+    }
+    // If colorType is 2 or 6, get from IDAT
+    // Otherwise, just return 255 length of pixels
   }
 
   setPixel(pos, data) {
-    // if (Array.isArray(data)) {
-      // const red = data[0];
-      // const green = data[1];
-      // const blue = data[2];
-      // const alpha = data[3] || DEFAULT_TRANSPARENCY;
-      // if (SHOWCOUNT < 2) {
-      //   console.log(index, red, green, blue, alpha);
-      // }
-
-      // Test for index type
-      // const paletteIndex = _chunks.get(this).PLTE.getColorIndex(data);
-      // _chunks.get(this).IDAT.setPixel(pos, paletteIndex);
-
-      _chunks.get(this).IDAT.setPixel(pos, data);
-    // } else {
-    //   const value = data;
-    // }
-
+    _chunks.get(this).IDAT.setPixel(pos, data);
     return this;
   }
 
-  /**
-   * @todo
-   * Can this be folded into something else?
-   */
-  // addColorToPalette(colorData) {
-  //   // Throw an error if not type 3 (?)
-    
-  //   if (Array.isArray(colorData)) {
-  //     _chunks.get(this).PLTE.addColor(colorData);
-
-  //     // Fix!
-  //     // Need index from palette.
-  //     _chunks.get(this).tRNS.setTransparency(0, 255);
-  //     _chunks.get(this).tRNS.setTransparency(1, 255);
-  //     _chunks.get(this).tRNS.setTransparency(2, 255);
-  //     _chunks.get(this).tRNS.setTransparency(3, 255);
-  //   } else {
-  //     const value = colorData;
-  //   }
-
-  //   return this;
-  // }
-
-  /**
-   * @todo
-   */
-  swapPaletteColor(targetColor, newColor) {
+  setPaletteColorOf(index, colorData) {
+    if ('undefined' === typeof _chunks.get(this).PLTE) {
+      throw new Error('Attempting to set a palette color when no palette exists');
+    }
+    _chunks.get(this).PLTE.setColorOf(index, colorData);
     return this;
   }
 
-  /**
-   * @todo
-   * This will be supported in a later version.
-   * 
-   */
-  dedupePalette() {
+  replacePaletteColor(targetColor, newColor) {
+    if ('undefined' === typeof _chunks.get(this).PLTE) {
+      throw new Error('Attempting to swap palette when no palette exists');
+    }
+    _chunks.get(this).PLTE.replaceColor(targetColor, newColor);
     return this;
   }
 

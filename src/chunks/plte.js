@@ -1,5 +1,9 @@
 import Chunk from './chunk';
-import { hashPixelKey, unhashPixelKey } from '../util/pixels';
+import {
+  hashPixelData,
+  hashPixelIndexKey,
+  unhashPixelIndexKey
+} from '../util/png-pixels';
 import { readUint32At } from '../util/typed-array';
 
 const HEADER = 'PLTE';
@@ -16,10 +20,6 @@ export default class PLTE extends Chunk {
     this.initialize(chunkLength);
   }
 
-  get palette() {
-    return this._palette;
-  }
-
   set maxNumberOfColors(value) {
     this._maxNumberOfColors = value;
   }
@@ -30,12 +30,17 @@ export default class PLTE extends Chunk {
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-    const sorted = Object.entries(this._palette).sort((a, b) => a[1] - b[1]);
+    const sorted = Object.entries(this._palette).sort((a, b) => 
+      unhashPixelIndexKey(a[0]) - unhashPixelIndexKey(b[0]));
+
+    console.log('sorted -->', sorted);
+
     for (let i = 0; i < sorted.length; i++) {
-      let rgba = unhashPixelKey(sorted[i][0]);
-      this.buffer.writeUint8(rgba[0]); 
-      this.buffer.writeUint8(rgba[1]); 
-      this.buffer.writeUint8(rgba[2]);
+      let rgb = sorted[i][1];
+      console.log('rgb', rgb)
+      this.buffer.writeUint8(rgb[0]); 
+      this.buffer.writeUint8(rgb[1]); 
+      this.buffer.writeUint8(rgb[2]);
     }
 
     const crc = this.calculateCrc32();
@@ -43,8 +48,6 @@ export default class PLTE extends Chunk {
   }
 
   load(abuf) {
-    // console.log('PLTE, on load', abuf);
-
     const colorInfo = abuf.subarray(
       this.calculateDataOffset(),
       abuf.byteLength
@@ -55,132 +58,127 @@ export default class PLTE extends Chunk {
       throw new Error('Invalid palette size supplied for PLTE chunk');
     }
 
+    console.log('load PLTE', abuf)
+
     for (let i = 0, n = 0; i < paletteSize; i += SAMPLES_PER_ENTRY, n += 1) {
-      this.setColor([
+      this.setColorOf(n, [
         colorInfo[i],
         colorInfo[i + 1],
         colorInfo[i + 2],
-      ], n, false);
+      ]);
     }
+
+    console.log('palette -->', paletteSize, this._palette);
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
   }
 
-  /**
-   * @todo
-   */
+  getPalette() {
+    return Object.entries(this._palette).map((entry) => {
+      return [unhashPixelIndexKey(entry[0]), entry[1]];
+    });
+  }
+
   isColorInPalette(colorData) {
-    let color;
-    if (Array.isArray(colorData)) {
-      color = convertRgbaToPaletteColor(...colorData);
-    } else {
-      color = String(colorData);
-    }
-    return this._palette.hasOwnProperty(color);
+    return this.getPaletteIndexOf(colorData) !== -1;
+    // console.log('isColorInPalette', colorData);
+
+    // const testColorKey = hashPixelData(colorData);
+    // const paletteEntries = Object.entries(this._palette);
+
+    // console.log('paletteEntries ->', testColorKey, paletteEntries);
+
+    // for (let i = 0; i < paletteEntries.length; i++) {
+    //   console.log('isColorInPalette ->', i, hashPixelData(paletteEntries[i][1]), paletteEntries[i]);
+
+    //   if (testColorKey === hashPixelData(paletteEntries[i][1])) {
+    //     return true;
+    //   }
+    // }
+    // return false;
   }
 
-  setColor(colorData, index = 0, checkExistence = true) {
-    const color = hashPixelKey(colorData);
-
-    if (checkExistence && this.isColorInPalette(color)) {
-      return this._palette[color];
-    }
-    if (this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {
-      throw new Error('Maximum number of colors reached');
-    }
-
-    this._palette[color] = index;
-    return this._palette[color];
+  isIndexInPalette(index) {
+    return 'undefined' !== typeof this._palette[hashPixelIndexKey(index)];
   }
-
-  swapColor(oldColor, newColor) {
-    if (!this.isColorInPalette(oldColor)) {
-      throw new Error('Color to be replaced is not in palette');
-    }
-
-    const value = this._palette[oldColor];
-    this._palette[newColor] = value;
-    delete this._palette[oldColor];
-    return this;
-  }
-
-  // setBackgroundColor(colorData) {
-  //   const color = convertRgbaToPaletteColor(...colorData);
-  //   if (this.getCurrentNumberOfColors() < this._maxNumberOfColors) {
-  //     this._palette[color] = 0;
-  //   }
-  //   this._isBackgroundSet = true;
-  //   return this;
-  // }
 
   getCurrentNumberOfColors() {
-    let startCount = this._isBackgroundSet ? 1 : 0;
-    return startCount + this._index;
+    return Object.keys(this._palette).length;
   }
 
-  /**
-   * @todo
-   */
-  getColorIndex(colorData) {
-    if (!this.isColorInPalette(colorData)) {
-      return -1;
-    }
-    if (Array.isArray(colorData)) {
-      return this._palette[convertRgbaToPaletteColor(...colorData)];
-    }
-    return this._palette[colorData];
-  }
-
-  /**
-   * @todo
-   * Remove, for testing only
-   */
-  getPixelPaletteIndices() {
-    return new Set(Array.from(new Set(Object.values(this._palette))).sort((a, b) => a - b));
-  }
-
-  getColorAt(paletteIndex) {
+  getPaletteIndexOf(colorData) {
+    console.log('getIndexOf', colorData);
+    const testColorKey = hashPixelData(colorData);
     const paletteEntries = Object.entries(this._palette);
+
+    console.log('paletteEntries ->', testColorKey, paletteEntries);
+
+
     for (let j = 0; j < paletteEntries.length; j++) {
-      if (paletteIndex === paletteEntries[j][1]) {
-        return unhashPixelKey(paletteEntries[j][0]);
+      console.log('getIndexOf ->', hashPixelData(paletteEntries[j][1]));
+
+      if (testColorKey === hashPixelData(paletteEntries[j][1])) {
+        let x = unhashPixelIndexKey(paletteEntries[j][0]);
+        return x;
+        // return unhashPixelIndexKey(paletteEntries[j][0]);
       }
     }
-    return undefined;
+    return -1;
+  }
+
+  getColorOf(index) {
+    const x = this._palette[hashPixelIndexKey(index)];
+    // console.log('get color of', index, x);
+    return x;
+  }
+
+  getPixelPaletteIndices() {
+    return Object.keys(this._palette).map((v) => Number(v)).sort((a, b) => a - b);
   }
 
   convertToPixels(paletteIndices) {
     let pixelData = new Uint8ClampedArray(paletteIndices.length * 3);
-    const paletteEntries = Object.entries(this._palette);
     let n = 0;
+
+    // console.log('paletteEntries', paletteEntries);
 
     for (let i = 0; i < paletteIndices.length; i++) {
       let paletteIndex = paletteIndices[i];
-      let pixelKey = null;
+      let pixel = this.getColorOf(paletteIndex);
 
-      for (let j = 0; j < paletteEntries.length; j++) {
-        if (paletteIndex === paletteEntries[j][1]) {
-          pixelKey = unhashPixelKey(paletteEntries[j][0]);
-          break;
-        }
-      }
-
-      if (!Array.isArray(pixelKey) || 3 !== pixelKey.length) {
+      // console.log('pixel', pixel);
+      if ('undefined' === typeof pixel || !Array.isArray(pixel) || 3 !== pixel.length) {
         throw new Error(`Problem retrieving pixel data for palette index ${paletteIndex}`);
       }
-      pixelData[n++] = pixelKey[0];
-      pixelData[n++] = pixelKey[1];
-      pixelData[n++] = pixelKey[2];
+      pixelData[n++] = pixel[0];
+      pixelData[n++] = pixel[1];
+      pixelData[n++] = pixel[2];
     }
-
-    console.log('converting to pixels', pixelData);
 
     return pixelData;
   }
 
+  setColorOf(index, colorData) {
+    if ('undefined' !== typeof this._palette[hashPixelIndexKey]) {
+      if (this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {
+        throw new Error('Maximum number of colors reached');
+      }
+    }
+    this._palette[hashPixelIndexKey(index)] = colorData;
+  }
+
+  replaceColor(oldColor, newColor) {
+    if (!this.isColorInPalette(oldColor)) {
+      throw new Error('Color to be replaced is not in palette');
+    }
+
+    const oldColorPaletteIndex = this.getPaletteIndexOf(oldColor);
+    this._palette[hashPixelIndexKey(oldColorPaletteIndex)] = newColor;
+  }
+
+
   calculatePayloadSize() {
-    console.log('palette length', Object.keys(this._palette).length);
     return Object.keys(this._palette).length * SAMPLES_PER_ENTRY;
   }
 

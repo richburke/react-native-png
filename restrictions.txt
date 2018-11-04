@@ -1,5 +1,10 @@
 • Size!
+• Does not support reading or creation of interlaced images.
 • Does not support bit depths of 16 or above.
 • Can only handle images with a single IDAT chunk.
-• The supported chunks are: IHDR, IDAT, PLTE, tRNS, bKGD, IEND.
+• The supported chunks are: IHDR, IDAT, PLTE, tRNS, bKGD, IEND.  That means the following ancillary chunks are not supported, and in most cases are irrelevant for the purpose of this library:
+- ....
 • Does not support PLTE for images that are not of color type 3.
+
+Handle in future versions
+dedupePalette()
