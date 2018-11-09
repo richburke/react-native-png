@@ -184,20 +184,19 @@ export default class IDAT extends Chunk {
   }
 
   _setRgbPixel(index, pixel) {
-    // console.log('index', index);
     this._pixelData[index++] = pixel[0]; // red
     this._pixelData[index++] = pixel[1]; // green
     this._pixelData[index++] = pixel[2]; // blue
   }
 
-  setPixel(pos, pixel) {
-    let index;
-    if (Array.isArray(pos) && pos.length === 2) {
-      index = this.translateXyToIndex(...pos);
-    } else {
-      index = pos;
-    }
+  _setAlpha(index, value) {
+    this._pixelData[index + 3] = value; // alpha
+  }
 
+  /**
+   * @todo
+   */
+  setPixel(index, pixel) {
     // if (this._colorType === ColorTypes.GRAYSCALE ||
     //   this._colorType === ColorTypes.GRAYSCALE_AND_ALPHA ||
     //   this._colorType === ColorTypes.INDEXED) {
@@ -209,22 +208,13 @@ export default class IDAT extends Chunk {
     return this;
   }
 
-  // /**
-  //  * It's possible for a Truecolor and a Truecolor (2) with alpha (6) to
-  //  * have palette indices as well, but that's not supported in this
-  //  * implementation.
-  //  */
-  // getPixelPaletteIndices() {
-  //   if (this._colorType !== ColorTypes.INDEXED) {
-  //     return [];
-  //   }
-  //   return new Set(Array.from(new Set(this._pixelData)).sort((a, b) => a - b));
-  // }
+  setAlpha(index, value) {
+    if (this._colorType !== ColorTypes.GRAYSCALE_AND_ALPHA &&
+      this._colorType !== ColorTypes.TRUECOLOR_AND_ALPHA) {
+        return;
+    }
 
-  translateXyToIndex(x, y) {
-    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
-    return y * (this._width * fullPixelSize) + (x * fullPixelSize);
-    // return y * (this._width * fullPixelSize + 1) + (x * fullPixelSize) + 1;
+    this._setAlpha(index, value);
   }
 
   verify(bufView) {
@@ -244,29 +234,6 @@ export default class IDAT extends Chunk {
     return (this._width * fullPixelSize + 1) * this._height;
     // return (this._numberOfPixels * this._pixelSize + 1) * this._height;
   }
-
-  // calculateAdler32() {
-  //   let s1 = 1;
-  //   let s2 = 0;
-  //   let n = ADLER_NMAX;
-  
-  //   for (let y = 0; y < this._height; y++) {
-  //     for (let x = -1; x < this._width; x++) {
-  //       s1 = s1 + this._pixelData[this.translateXyToIndex(x, y)];
-  //       s2 = s2 + s1;
-  //       n = n - 1;
-  //       if (n == 0) {
-  //         s1 %= ADLER_BASE;
-  //         s2 %= ADLER_BASE;
-  //         n = ADLER_NMAX;
-  //       }
-  //     }
-  //   }
-  //   s1 = s1 % ADLER_BASE;
-  //   s2 = s2 % ADLER_BASE;
-
-  //   return [s1, s2];
-  // }
 
   calculatePayloadSize(pixelAndFilterSize = -1) {
     if (pixelAndFilterSize === -1) {

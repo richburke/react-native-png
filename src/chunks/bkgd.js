@@ -52,7 +52,7 @@ export default class bKGD extends Chunk {
     } else {
       const numberOfSamples = determineBackgroundSamplesPerEntry(this._colorType);
       for (let i = 0, offset = dataOffset; i < numberOfSamples; i++, offset += 2) {
-        color.push(this.buffer.readUint16At(dataOffset));
+        color.push(this.buffer.readUint16At(dataOffset, true));
       }
     }
     this.setBackgroundColor(color);

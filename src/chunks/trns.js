@@ -41,11 +41,17 @@ export default class tRNS extends Chunk {
 
     if (ColorTypes.INDEXED === this._colorType) {
       for (let i = 0; i < this._transparencies.length; i++) {
-        this.buffer.writeUint8(this._transparencies[i]); 
+        this.buffer.writeUint8('undefined' === typeof this._transparencies[i]
+          ? 255
+          : this._transparencies[i]
+        ); 
       }
     } else {
       for (let i = 0; i < this._transparencies.length; i++) {
-        this.buffer.writeUint16(this._transparencies[i]); 
+        this.buffer.writeUint16('undefined' === typeof this._transparencies[i]
+          ? 255
+          : this._transparencies[i]
+        );
       }
     }
 
@@ -72,16 +78,16 @@ export default class tRNS extends Chunk {
         let r = readUint16At(transparencyInfo, i);
         let g = readUint16At(transparencyInfo, i + 2);
         let b = readUint16At(transparencyInfo, i + 4);
-        this.setTransparency([r, g, b], n);
+        this.setTransparency(n, [r, g, b]);
       }
     } else if (ColorTypes.GRAYSCALE === this._colorType) {
       for (let i = 0, n = 0; i < limit; i += samplesPerEntry, n += 1) {
         let luminousity = readUint16At(transparencyInfo, i);
-        this.setTransparency(luminousity, n);
+        this.setTransparency(n, luminousity);
       }
     } else {
       for (let i = 0; i < limit; i += samplesPerEntry) {
-        this.setTransparency(readUint8At(transparencyInfo, i));
+        this.setTransparency(i, readUint8At(transparencyInfo, i));
       }
     }
   }
@@ -97,33 +103,32 @@ export default class tRNS extends Chunk {
     return transparencies;
   }
 
-  setTransparency(opacity, index = -1) {
-    if (ColorTypes.GRAYSCALE === this._colorType || ColorTypes.INDEXED === this._colorType) {
-      if (index >= this._numberOfPixels) {
-        throw new Error('Attempting to set a opacity out of range of pixels');
-      }
+  setTransparency(index, opacity) {
+    const maxIndex = ColorTypes.GRAYSCALE !== this._colorType
+      && ColorTypes.INDEXED !== this._colorType
+      ? index + 2
+      : index;
 
+    if (maxIndex >= this._numberOfPixels) {
+      throw new Error('Attempting to set a opacity out of range of pixels');
+    }
+
+    if (ColorTypes.GRAYSCALE === this._colorType || ColorTypes.INDEXED === this._colorType) {
       if (-1 !== index) {
         this._transparencies[index] = opacity;
       } else {
         this._transparencies.push(opacity);
       }
-
-      return;
-    }
-
-    if (index + 2 >= this._numberOfPixels) {
-      throw new Error('Attempting to set a opacity out of range of pixels');
-    }
-
-    if (-1 !== index) {
-      this._transparencies[index] = opacity[0];
-      this._transparencies[index + 1] = opacity[1];
-      this._transparencies[index + 2] = opacity[2];
     } else {
-      this._transparencies.push(opacity[0]);
-      this._transparencies.push(opacity[1]);
-      this._transparencies.push(opacity[2]);
+      if (-1 !== index) {
+        this._transparencies[index] = opacity[0];
+        this._transparencies[index + 1] = opacity[1];
+        this._transparencies[index + 2] = opacity[2];
+      } else {
+        this._transparencies.push(opacity[0]);
+        this._transparencies.push(opacity[1]);
+        this._transparencies.push(opacity[2]);
+      }
     }
   }
 

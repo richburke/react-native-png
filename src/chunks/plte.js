@@ -37,7 +37,6 @@ export default class PLTE extends Chunk {
 
     for (let i = 0; i < sorted.length; i++) {
       let rgb = sorted[i][1];
-      console.log('rgb', rgb)
       this.buffer.writeUint8(rgb[0]); 
       this.buffer.writeUint8(rgb[1]); 
       this.buffer.writeUint8(rgb[2]);

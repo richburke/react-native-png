@@ -1,9 +1,6 @@
 import { ColorTypes, BitDepths, PixelLayouts } from './constants';
 
-export const hashPixelData = (colorData) => {
-  console.log('colorData', colorData);
-  return colorData.join(',');
-}
+export const hashPixelData = (colorData) => colorData.join(',');
 
 export const hashPixelIndexKey = (index) => String(index);
 

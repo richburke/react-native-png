@@ -1,4 +1,7 @@
 /**
+ * https://en.wikipedia.org/wiki/Portable_Network_Graphics
+ * https://www.w3.org/TR/PNG/
+ * http://www.libpng.org/pub/png/
  * http://www.schaik.com/pngsuite/
  */
 
@@ -14,7 +17,12 @@ import {
 } from './util/constants';
 import { CHUNK_LENGTH_SIZE } from './chunks/chunk';
 import { indexOfSequence } from './util/typed-array';
-import { computeNumberOfPixels, computeMaxNumberOfColors } from './util/png-pixels';
+import {
+  determinePixelColorSize,
+  determineHasAlphaSample,
+  computeNumberOfPixels,
+  computeMaxNumberOfColors
+} from './util/png-pixels';
 import Prefix from './chunks/prefix';
 import IHDR from './chunks/ihdr';
 import tRNS from './chunks/trns';
@@ -196,8 +204,7 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       break;
 
     case 'IDAT':
-    console.log(chunkHeader, bufView);
-
+      console.log(chunkHeader, bufView);
 
       chunk = _chunks.get(ctxt)[chunkHeader];
       chunk.applyLayoutInformation({
@@ -214,11 +221,25 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
   }
 };
 
+const _doesContainChunk = (ctxt, chunkHeader) => 'undefined' !== typeof _chunks.get(ctxt)[chunkHeader];
+
+const _isColorType = (ctxt, colorType) => colorType === _colorType.get(ctxt);
+
+const _translateXyToIndex = (ctxt, x, y) => {
+  const width = _width.get(ctxt);
+  const colorType = _colorType.get(ctxt);
+  const pixelColorSize = determinePixelColorSize(colorType);
+  const hasAlphaSample = determineHasAlphaSample(colorType);
+  const fullPixelSize = pixelColorSize + (hasAlphaSample ? 1 : 0);
+
+  return y * (width * fullPixelSize) + (x * fullPixelSize);
+};
+
 /**
- * November 4
- * - Write transparencies for color types 0 & 2
+ * November 8
+ * - [√] Get opacities
  * - Set transparency
- * - Set background
+ * - [√] Set background
  * - Set pixel
  */
 /**
@@ -238,9 +259,9 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
  * [√] Get transparencies
  * [√] Set palette color
  * [√] Swap palette color
- * [] Get background
+ * [√] Get background
  * Set transparency
- * Set background
+ * [√] Set background
  * Set pixel
  * [√] Get other basics to work
  * [√] Get transparencies to work
@@ -257,6 +278,7 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
  * - ColorType 4
  * - ColorType 6
  * - From scratch
+ * - Choose from PngSuite images
  */
 
 export default class RnPng {
@@ -381,41 +403,67 @@ export default class RnPng {
 
     console.log('getData', rawPixelData);
 
-    const pixelData = ColorTypes.INDEXED === _colorType.get(this)
+    const pixelData = _isColorType(this, ColorTypes.INDEXED)
       ? _chunks.get(this).PLTE.convertToPixels(rawPixelData)
       : rawPixelData;
-    const trnsData = 'undefined' !== typeof _chunks.get(this).tRNS
+    const trnsData = _doesContainChunk(this, 'tRNS')
       ? _chunks.get(this).tRNS.getTransparencies()
       : [];
     return _chunks.get(this).IDAT.getData(pixelLayout, pixelData, trnsData);
   }
 
   getPalette() {
-    if ('undefined' === typeof _chunks.get(this).PLTE) {
+    if (_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette indices when no palette exists');
     }
     return _chunks.get(this).PLTE.getPalette();
   }
 
-  /**
-   * @todo
-   * 
-   */
   getOpacities() {
-    if ('undefined' !== typeof _chunks.get(this).tRNS) {
+    if (_doesContainChunk(this, 'tRNS')) {
       return _chunks.get(this).tRNS.getTransparencies();
     }
-    // If colorType is 2 or 6, get from IDAT
-    // Otherwise, just return 255 length of pixels
+
+    if (_isColorType(this, ColorTypes.GRAYSCALE_AND_ALPHA)
+      || _isColorType(this, ColorTypes.TRUECOLOR_AND_ALPHA)) {
+        const data = this.getData();
+        const numberOfSamples = determinePixelColorSize(_colorType.get(this)) + 1;
+        return data.reduce((acc, curr, ind) => {
+          return (ind + 1) % numberOfSamples === 0
+            ? acc.concat(curr)
+            : acc;
+        }, []);
+    }
+
+    let opacities = new Uint8ClampedArray(computeNumberOfPixels(
+      _width.get(this),
+      _height.get(this)
+    ));
+    return opacities.fill(255);
+  }
+
+  getBackground() {
+    console.log('bkg', _doesContainChunk(this, 'bKGD'));
+    if (_doesContainChunk(this, 'bKGD')) {
+      return _chunks.get(this).bKGD.getBackgroundColor();
+    }
+    return undefined;
   }
 
   setPixel(pos, data) {
-    _chunks.get(this).IDAT.setPixel(pos, data);
+    let index;
+    if (Array.isArray(pos) && pos.length === 2) {
+      index = _translateXyToIndex(this, ...pos);
+    } else {
+      index = pos;
+    }
+
+    _chunks.get(this).IDAT.setPixel(index, data);
     return this;
   }
 
   setPaletteColorOf(index, colorData) {
-    if ('undefined' === typeof _chunks.get(this).PLTE) {
+    if (_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to set a palette color when no palette exists');
     }
     _chunks.get(this).PLTE.setColorOf(index, colorData);
@@ -423,7 +471,7 @@ export default class RnPng {
   }
 
   replacePaletteColor(targetColor, newColor) {
-    if ('undefined' === typeof _chunks.get(this).PLTE) {
+    if (_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to swap palette when no palette exists');
     }
     _chunks.get(this).PLTE.replaceColor(targetColor, newColor);
@@ -431,21 +479,59 @@ export default class RnPng {
   }
 
   setBackground(colorData) {
+    if (_doesContainChunk(this, 'bKGD')) {
+      _chunks.get(this).bKGD.setBackgroundColor(colorData);
+    }
+    /**
+     * If we have a bGKD chunk, use that
+     * If we have a PLTE chunk, set the value 0 to the color and add a tRNS if alpha is supplied
+     * Otherwise add a bGKD chunk
+     */
+    // if (_doesContainChunk(this, 'bGKD')) {
+
+    // }
     // If colorType is indexed (3), do this way.
     // Otherwise add ancillary background attribute.
-    if (Array.isArray(colorData)) {
-      _chunks.get(this).PLTE.setBackgroundColor(colorData);
+    // if (Array.isArray(colorData)) {
+    //   // _chunks.get(this).PLTE.setBackgroundColor(colorData);
+    // } else {
+    //   const value = colorData;
+    // }
+
+    return this;
+  }
+
+  setOpacity(pos, value) {
+    let index;
+    if (Array.isArray(pos) && pos.length === 2) {
+      index = _translateXyToIndex(this, ...pos);
     } else {
-      const value = colorData;
+      index = pos;
+    }
+
+    if (_isColorType(this, ColorTypes.GRAYSCALE_AND_ALPHA)
+    || _isColorType(this, ColorTypes.TRUECOLOR_AND_ALPHA)) {
+      _chunks.get(this).IDAT.setAlpha(value, index);
     }
 
     return this;
   }
 
-  /**
-   * @todo
-   */
-  setOpacity(index, value) {
+  setTransparencyOf(index, value) {
+    if (_isColorType(this, ColorTypes.INDEXED)
+      && index >= this.getPalette().length) {
+        throw new Error('Cannot set the transparency of an item not in palette');
+    }
+
+    if (!_doesContainChunk(this, 'tRNS')) {
+      _chunks.get(this).tRNS = new tRNS({
+        colorType: _colorType.get(this),
+        numberOfPixels: computeNumberOfPixels(_width.get(this), _height.get(this)),
+        maxNumberOfColors: computeMaxNumberOfColors(_depth.get(this)),
+      });
+    }
+    _chunks.get(this).tRNS.setTransparency(index, value);
+
     return this;
   }
 
