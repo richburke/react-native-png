@@ -1,7 +1,16 @@
 import Chunk from './chunk';
-import { ColorTypes } from '../util/constants';
-import { readUint8At, readUint16At, readUint32At } from '../util/typed-array';
-import { determineTransparencySamplesPerEntry } from '../util/png-pixels';
+import {
+  readUint8At,
+  readUint16At,
+  readUint32At
+} from '../util/typed-array';
+import {
+  isGrayscale,
+  isTruecolor,
+  isIndexed,
+  determineTransparencySamplesPerEntry,
+  hashPixelData
+} from '../util/png-pixels';
 
 const HEADER = 'tRNS';
 
@@ -39,20 +48,19 @@ export default class tRNS extends Chunk {
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-    if (ColorTypes.INDEXED === this._colorType) {
+    if (isIndexed(this._colorType)) {
       for (let i = 0; i < this._transparencies.length; i++) {
         this.buffer.writeUint8('undefined' === typeof this._transparencies[i]
           ? 255
-          : this._transparencies[i]
+          : this._transparencies[i][0]
         ); 
       }
     } else {
-      for (let i = 0; i < this._transparencies.length; i++) {
-        this.buffer.writeUint16('undefined' === typeof this._transparencies[i]
-          ? 255
-          : this._transparencies[i]
-        );
-      }
+      this._transparencies.forEach((transparency) => {
+        transparency.forEach((transparencySampleValue) => {
+          this.buffer.writeUint16(transparencySampleValue);
+        });
+      });
     }
 
     const crc = this.calculateCrc32();
@@ -62,74 +70,114 @@ export default class tRNS extends Chunk {
   load(abuf) {
     const transparencyInfo = abuf.subarray(
       this.calculateDataOffset(),
-      abuf.byteLength
+      abuf.length - this.calculateDataOffset() - 4
     );
 
+    console.log('loading tRNS', transparencyInfo);
+
     const suppliedLimit = readUint32At(abuf, 0);
-    const dataLimit = ColorTypes.TRUECOLOR === this._colorType
-      ? transparencyInfo.length - 2
-      : transparencyInfo.length;
+    // const dataLimit = isTruecolor(this._colorType)
+    //   ? transparencyInfo.length / 3
+    //   : transparencyInfo.length;
+    const dataLimit = transparencyInfo.length;
     const limit = Math.min(suppliedLimit, dataLimit);
 
     const samplesPerEntry = determineTransparencySamplesPerEntry(this._colorType);
 
-    if (ColorTypes.TRUECOLOR === this._colorType) {
+    if (isTruecolor(this._colorType)) {
       for (let i = 0, n = 0; i < limit; i += samplesPerEntry, n += 1) {
-        let r = readUint16At(transparencyInfo, i);
-        let g = readUint16At(transparencyInfo, i + 2);
-        let b = readUint16At(transparencyInfo, i + 4);
-        this.setTransparency(n, [r, g, b]);
+        let r = readUint8At(transparencyInfo, i, true);
+        // let r = readUint16At(transparencyInfo, i, true);
+        let g = readUint8At(transparencyInfo, i + 1, true);
+        // let g = readUint16At(transparencyInfo, i + 2, true);
+        let b = readUint8At(transparencyInfo, i + 2, true);
+        // let b = readUint16At(transparencyInfo, i + 4, true);
+        this.setTransparency([r, g, b]);
       }
-    } else if (ColorTypes.GRAYSCALE === this._colorType) {
+    } else if (isGrayscale(this._colorType)) {
       for (let i = 0, n = 0; i < limit; i += samplesPerEntry, n += 1) {
-        let luminousity = readUint16At(transparencyInfo, i);
-        this.setTransparency(n, luminousity);
+        this.setTransparency([readUint16At(transparencyInfo, i)]);
       }
     } else {
       for (let i = 0; i < limit; i += samplesPerEntry) {
-        this.setTransparency(i, readUint8At(transparencyInfo, i));
+        this.setTransparency([readUint8At(transparencyInfo, i)]);
       }
     }
   }
 
+  /*
+   * "The tRNS chunk specifies either alpha values that are associated with palette
+   * entries (for indexed-colour images) or a single transparent colour (for greyscale 
+   * and truecolour images)"
+   */
   getTransparencies() {
-    const transparencies = new Uint8ClampedArray(this._numberOfPixels);
-    for (let i = 0; i < this._transparencies.length; i++) {
-      transparencies[i] = this._transparencies[i];
+    if (isGrayscale(this._colorType) || isIndexed(this._colorType)) {
+      return this._transparencies.flat();
     }
-    for (let i = this._transparencies.length; i < transparencies.length; i++) {
-      transparencies[i] = 255;
-    }
-    return transparencies;
+    return this._transparencies;
   }
 
-  setTransparency(index, opacity) {
-    const maxIndex = ColorTypes.GRAYSCALE !== this._colorType
-      && ColorTypes.INDEXED !== this._colorType
-      ? index + 2
-      : index;
+  getIndexOf(colorData) {
+    const hashedTestData = hashPixelData(colorData);
+    for (let i = 0; i < this._transparencies.length; i++) {
+      if (hashedTestData === hashPixelData(this._transparencies[i])) {
+        return i;
+      }
+    }
+    return -1;
+  }
 
-    if (maxIndex >= this._numberOfPixels) {
+  isTransparencySet(colorData) {
+    return this.getIndexOf(colorData) !== -1;
+  }
+
+  /**
+   * For indexed color types, the colorData supplied is the alpha value to be
+   * associated with the associated palette color.  For the other relevant types
+   * (Grayscale and Truecolor), colorData indicates the color, stashed in IDAT,
+   * that should be considered transparent.
+   */
+  setTransparency(colorData, index = -1) {
+    if (index >= this._numberOfPixels) {
       throw new Error('Attempting to set a opacity out of range of pixels');
     }
 
-    if (ColorTypes.GRAYSCALE === this._colorType || ColorTypes.INDEXED === this._colorType) {
-      if (-1 !== index) {
-        this._transparencies[index] = opacity;
-      } else {
-        this._transparencies.push(opacity);
-      }
-    } else {
-      if (-1 !== index) {
-        this._transparencies[index] = opacity[0];
-        this._transparencies[index + 1] = opacity[1];
-        this._transparencies[index + 2] = opacity[2];
-      } else {
-        this._transparencies.push(opacity[0]);
-        this._transparencies.push(opacity[1]);
-        this._transparencies.push(opacity[2]);
+    if (!Array.isArray(colorData)) {
+      colorData = [colorData];
+    }
+
+    if (isIndexed(this._colorType) && index > this._transparencies.length) {
+      for (let i = this._transparencies.length; i < index; i++) {
+        this._transparencies[i] = [255];
       }
     }
+
+    if (-1 !== index) {
+      this._transparencies[index] = colorData;
+      return index;
+    }
+    this._transparencies.push(colorData);
+    return this._transparencies.length - 1;
+  }
+
+  /**
+   * For grayscale and truecolor types
+   */
+  removeTransparency(colorData) {
+    const index = this.getIndexOf(colorData);
+    if (index !== -1) {
+      this._transparencies.splice(index, 1);
+    }
+  }
+
+  /**
+   * For indexed color types
+   */
+  removeTransparencyOf(index) {
+    if ('undefined' === typeof this._transparencies[index]) {
+      throw new Error('Attempting to remove the transparency of an element that does not exist');
+    }
+    this._transparencies[index] = [255];
   }
 
   calculatePayloadSize() {

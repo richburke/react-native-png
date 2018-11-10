@@ -74,22 +74,22 @@ export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
     scanLine = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
     console.log('FILTER', filter);
     if (filter === 0) {
-      console.log('filter is none', bytesPerPixel);
+      // console.log('filter is none', bytesPerPixel);
     }
     if (filter === 1) {
-      console.log('filter is sub', bytesPerPixel);
+      // console.log('filter is sub', bytesPerPixel);
       defilterSub(scanLine, bytesPerPixel);
     }
     if (filter === 2) {
-      console.log('filter is up');
+      // console.log('filter is up');
       defilterUp(scanLine, previousRow, i);
     }
     if (filter === 3) {
-      console.log('filter is average!');
+      // console.log('filter is average!');
       defilterAverage(scanLine, bytesPerPixel, previousRow);
     }
     if (filter === 4) {
-      console.log('filter is paeth!');
+      // console.log('filter is paeth!');
       defilterPaeth(scanLine, bytesPerPixel, previousRow);
     }
 
@@ -97,6 +97,7 @@ export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
     previousRow = scanLine.slice(0);
   }
 
+  /*
   let s = '\n';
   for (let i=0, n = imageAndFilterData.byteLength; i < n; i++) {
     s += '|' + imageAndFilterData[i];
@@ -105,6 +106,7 @@ export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
     }
   }
   console.log(s);
+  */
 }
 
 export const removeFilterFields = (pixelAndFilterData, dataRowSize, height) => {

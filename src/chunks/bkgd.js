@@ -1,6 +1,8 @@
 import Chunk from './chunk';
-import { ColorTypes } from '../util/constants';
-import { determineBackgroundSamplesPerEntry } from '../util/png-pixels';
+import {
+  determineBackgroundSamplesPerEntry,
+  isIndexed,
+} from '../util/png-pixels';
 
 const HEADER = 'bKGD';
 
@@ -26,7 +28,7 @@ export default class bKGD extends Chunk {
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-    if (ColorTypes.INDEXED === this._colorType) {
+    if (isIndexed(this._colorType)) {
       this.buffer.writeUint8(this._backgroundColor[0]); 
     } else {
       for (let i = 0; i < this._backgroundColor.length; i++) {
@@ -47,7 +49,7 @@ export default class bKGD extends Chunk {
 
     const dataOffset = this.calculateDataOffset();
     let color = [];
-    if (ColorTypes.INDEXED === this._colorType) {
+    if (isIndexed(this._colorType)) {
       color.push(this.buffer.readUint8At(dataOffset));
     } else {
       const numberOfSamples = determineBackgroundSamplesPerEntry(this._colorType);
@@ -74,7 +76,7 @@ export default class bKGD extends Chunk {
   }
 
   calculatePayloadSize() {
-    if (ColorTypes.INDEXED === this._colorType) {
+    if (isIndexed(this._colorType)) {
       return 1;
     } else {
       return determineBackgroundSamplesPerEntry(this._colorType) * 2;

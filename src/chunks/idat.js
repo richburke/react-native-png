@@ -1,13 +1,18 @@
 import Chunk, { CHUNK_CRC32_SIZE } from './chunk';
 import {
   ChunkHeaderSequences,
-  ColorTypes,
   BitDepths,
   PixelLayouts,
 } from '../util/constants';
 import {
+  isGrayscale,
+  isTruecolor,
+  isIndexed,
+  isGrayscaleWithAlpha,
+  isTruecolorWithAlpha,
+  hasAlphaSample,
   determinePixelColorSize,
-  determineHasAlphaSample,
+  determineFullPixelSize,
   determineDataRowLength,
   formatPixels,
 } from '../util/png-pixels';
@@ -49,7 +54,7 @@ export default class IDAT extends Chunk {
 
   getData(pixelLayout, pixelData, trnsData) {
     if (PixelLayouts.INDEX_VALUE === pixelLayout) {
-      if (ColorTypes.INDEXED !== this._colorType) {
+      if (isIndexed(this._colorType)) {
         throw new Error('Attempt to get palette indices from a non-indexed image');
       } else {
         return pixelData;
@@ -92,7 +97,7 @@ export default class IDAT extends Chunk {
     this._numberOfPixels = info.numberOfPixels;
 
     this._pixelColorSize = determinePixelColorSize(this._colorType);
-    this._hasAlphaSample = determineHasAlphaSample(this._colorType);
+    this._hasAlphaSample = hasAlphaSample(this._colorType);
   }
 
   update() {
@@ -111,7 +116,7 @@ export default class IDAT extends Chunk {
     // const packedPixelData = new Uint8ClampedArray(128);
     console.log('packing data -->');
     const packedPixelData = Uint8ClampedArray.from(
-      packByteData(this._pixelData, this._depth, ColorTypes.INDEXED !== this._colorType)
+      packByteData(this._pixelData, this._depth, !isIndexed(this._colorType))
     );
     console.log('packed data -->', packedPixelData);
     // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
@@ -120,7 +125,7 @@ export default class IDAT extends Chunk {
     // this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
 
     let pixelAndFilterData;
-    if (this._depth >= BitDepths.EIGHT && ColorTypes.INDEXED !== this._colorType) {
+    if (this._depth >= BitDepths.EIGHT && !isIndexed(this._colorType)) {
       pixelAndFilterData = Uint8ClampedArray.from(
         addFilterFields(
           packedPixelData,
@@ -153,7 +158,7 @@ export default class IDAT extends Chunk {
     // console.log('uncompressed data -->', uncompressedData);
 
     let pixelOnlyData;
-    if (this._depth >= BitDepths.EIGHT && ColorTypes.INDEXED !== this._colorType) {
+    if (this._depth >= BitDepths.EIGHT && !isIndexed(this._colorType)) {
       defilter(uncompressedData, this._width, fullPixelSize);
       pixelOnlyData = Uint8ClampedArray.from(
         removeFilterFields(
@@ -169,7 +174,7 @@ export default class IDAT extends Chunk {
     // console.log('pixels only -->', pixelOnlyData);
 
     this._pixelData = Uint8ClampedArray.from(
-      unpackByteData(pixelOnlyData, this._depth, ColorTypes.INDEXED !== this._colorType)
+      unpackByteData(pixelOnlyData, this._depth, !isIndexed(this._colorType))
     );
 
     console.log('= --->', this._pixelData);
@@ -195,11 +200,9 @@ export default class IDAT extends Chunk {
 
   /**
    * @todo
+   * done?
    */
-  setPixel(index, pixel) {
-    // if (this._colorType === ColorTypes.GRAYSCALE ||
-    //   this._colorType === ColorTypes.GRAYSCALE_AND_ALPHA ||
-    //   this._colorType === ColorTypes.INDEXED) {
+  setPixelOf(index, pixel) {
     if (Array.isArray(pixel)) {
       this._setRgbPixel(index, pixel);
     } else {
@@ -209,8 +212,7 @@ export default class IDAT extends Chunk {
   }
 
   setAlpha(index, value) {
-    if (this._colorType !== ColorTypes.GRAYSCALE_AND_ALPHA &&
-      this._colorType !== ColorTypes.TRUECOLOR_AND_ALPHA) {
+    if (!isGrayscaleWithAlpha(this._colorType) && !isTruecolorWithAlpha(this._colorType)) {
         return;
     }
 
@@ -229,10 +231,30 @@ export default class IDAT extends Chunk {
     this._zlibLib = lib;
   }
 
+  getValueAt(index) {
+    return this._pixelData[index];
+  }
+
+  getPixelAt(index) {
+    if (isGrayscale(this._colorType) || isIndexed(this._colorType)) {
+      return [this.getValueAt(index)];
+    }
+
+    const fullPixelSize = determineFullPixelSize(this._colorType);
+    if (index + fullPixelSize >= this._pixelData.length) {
+      throw new Error('Trying to get a value beyond the range of pixel data');
+    }
+
+    const pixelData = [];
+    for (let i = index; i < fullPixelSize; i++) {
+      pixelData.push(this.getValueAt(i));
+    }
+    return pixelData;
+  }
+
   calculatePixelAndFilterSize() {
-    const fullPixelSize = this._pixelColorSize + (this._hasAlphaSample ? 1 : 0);
+    const fullPixelSize = determineFullPixelSize(this._colorType);
     return (this._width * fullPixelSize + 1) * this._height;
-    // return (this._numberOfPixels * this._pixelSize + 1) * this._height;
   }
 
   calculatePayloadSize(pixelAndFilterSize = -1) {

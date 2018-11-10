@@ -11,10 +11,11 @@ dedupePalette()
 
 TESTING
 --
-• Need to test images that are not 32x32
+√ Need to test images that are not 32x32
 
 QUESTION
 --
 • Why is 
 PngSuite-2017jul19/tp1n3p08.png
   showing up with 4192 data entries and not 4096?  (difference 96 / 4 = 24)
+• Are tRNS or bKGD written with lsb?

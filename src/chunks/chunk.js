@@ -1,8 +1,6 @@
 import ArrayBufferWrapper from '../util/array-buffer-wrapper';
 import { calculateCrc32 } from '../util/crc';
 
-import { bv2str } from '../util/string-arraybuffer';
-
 export const CHUNK_LENGTH_SIZE = 4;
 export const CHUNK_HEADER_SIZE = 4;
 export const CHUNK_CRC32_SIZE = 4;
