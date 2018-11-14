@@ -124,11 +124,15 @@ export const removeFilterFields = (pixelAndFilterData, dataRowSize, height) => {
 
 export const addFilterFields = (pixelOnlyData, dataRowSize, height) => {
   const scanlineStep = dataRowSize + 1;
+  console.log('pixelOnlyData length', pixelOnlyData.length);
+  // let pixelAndFilterData = new Uint8ClampedArray(pixelOnlyData.length + 64);
   let pixelAndFilterData = new Uint8ClampedArray(pixelOnlyData.length + height);
 
+  console.log(pixelAndFilterData.length);
   for (let i = 0, n = 0, x = 1; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep, x++) {
     let t = pixelOnlyData.subarray(i, i + dataRowSize);
     let s = [0, ...t];
+    console.log(x, t, s)
     pixelAndFilterData.set(s, n);
   }
   return pixelAndFilterData;

@@ -52,6 +52,10 @@ export default class PLTE extends Chunk {
       abuf.byteLength
     );
 
+    /**
+     * @todo
+     * Can I move this above and just get the stuff I need?
+     */
     const paletteSize = readUint32At(abuf, 0);
     if (0 !== paletteSize % SAMPLES_PER_ENTRY) {
       throw new Error('Invalid palette size supplied for PLTE chunk');
@@ -155,8 +159,8 @@ export default class PLTE extends Chunk {
     if (this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {
       throw new Error('Maximum number of colors reached');
     }
-    this._palette.push(colorData);
-    return this._palette.length - 1;
+    const index = Object.keys(this._palette).length;
+    return this.setColorOf(index, colorData);
   }
 
   replaceColor(oldColor, newColor) {

@@ -86,12 +86,12 @@ export default class tRNS extends Chunk {
 
     if (isTruecolor(this._colorType)) {
       for (let i = 0, n = 0; i < limit; i += samplesPerEntry, n += 1) {
-        let r = readUint8At(transparencyInfo, i, true);
-        // let r = readUint16At(transparencyInfo, i, true);
-        let g = readUint8At(transparencyInfo, i + 1, true);
-        // let g = readUint16At(transparencyInfo, i + 2, true);
-        let b = readUint8At(transparencyInfo, i + 2, true);
-        // let b = readUint16At(transparencyInfo, i + 4, true);
+        // let r = readUint8At(transparencyInfo, i, true);
+        let r = readUint16At(transparencyInfo, i);
+        // let g = readUint8At(transparencyInfo, i + 1, true);
+        let g = readUint16At(transparencyInfo, i + 2);
+        // let b = readUint8At(transparencyInfo, i + 2, true);
+        let b = readUint16At(transparencyInfo, i + 4);
         this.setTransparency([r, g, b]);
       }
     } else if (isGrayscale(this._colorType)) {
@@ -112,7 +112,9 @@ export default class tRNS extends Chunk {
    */
   getTransparencies() {
     if (isGrayscale(this._colorType) || isIndexed(this._colorType)) {
-      return this._transparencies.flat();
+      return this._transparencies.reduce((acc, curr) => {
+        return acc.concat(...curr);
+      }, []);
     }
     return this._transparencies;
   }

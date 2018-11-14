@@ -44,5 +44,8 @@
     "jest": "^23.6.0",
     "pixelmatch": "^4.0.2",
     "pngjs": "^3.3.3"
+  },
+  "dependencies": {
+    "core-js": "^2.5.7"
   }
 }
