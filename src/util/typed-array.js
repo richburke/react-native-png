@@ -151,6 +151,15 @@ const unpackDepth2Data = (packedData, translateValues) => {
     let pixel3 = 0;
     let pixel4 = 0;
 
+    //     pixel1 += (byte & 1) === 1 ? 1 : 0;
+    // pixel1 += (byte >> 1 & 1) === 1 ? 2 : 0;
+    // pixel2 += (byte >> 2 & 1) === 1 ? 1 : 0;
+    // pixel2 += (byte >> 3 & 1) === 1 ? 2 : 0;
+    // pixel3 += (byte >> 4 & 1) === 1 ? 1 : 0;
+    // pixel3 += (byte >> 5 & 1) === 1 ? 2 : 0;
+    // pixel4 += (byte >> 6 & 1) === 1 ? 1 : 0;
+    // pixel4 += (byte >> 7 & 1) === 1 ? 2 : 0;
+
     pixel1 += (byte >> 6 & 1) === 1 ? 1 : 0;
     pixel1 += (byte >> 7 & 1) === 1 ? 2 : 0;
     pixel2 += (byte >> 4 & 1) === 1 ? 1 : 0;
@@ -159,24 +168,6 @@ const unpackDepth2Data = (packedData, translateValues) => {
     pixel3 += (byte >> 3 & 1) === 1 ? 2 : 0;
     pixel4 += (byte & 1) === 1 ? 1 : 0;
     pixel4 += (byte >> 1 & 1) === 1 ? 2 : 0;
-
-    // pixel1 += (byte >> 7 & 1) === 1 ? 1 : 0;
-    // pixel1 += (byte >> 6 & 1) === 1 ? 2 : 0;
-    // pixel2 += (byte >> 5 & 1) === 1 ? 1 : 0;
-    // pixel2 += (byte >> 4 & 1) === 1 ? 2 : 0;
-    // pixel3 += (byte >> 3 & 1) === 1 ? 1 : 0;
-    // pixel3 += (byte >> 2 & 1) === 1 ? 2 : 0;
-    // pixel4 += (byte >> 1 & 1) === 1 ? 1 : 0;
-    // pixel4 += (byte & 1) === 1 ? 2 : 0;
-
-    // pixel1 += (byte & 1) === 1 ? 1 : 0;
-    // pixel1 += (byte >> 1 & 1) === 1 ? 2 : 0;
-    // pixel2 += (byte >> 2 & 1) === 1 ? 1 : 0;
-    // pixel2 += (byte >> 3 & 1) === 1 ? 2 : 0;
-    // pixel3 += (byte >> 4 & 1) === 1 ? 1 : 0;
-    // pixel3 += (byte >> 5 & 1) === 1 ? 2 : 0;
-    // pixel4 += (byte >> 6 & 1) === 1 ? 1 : 0;
-    // pixel4 += (byte >> 7 & 1) === 1 ? 2 : 0;
 
     if (translateValues) {
       unpackedData[n++] = values[pixel1];
@@ -202,14 +193,22 @@ const unpackDepth4Data = (packedData, translateValues) => {
     let pixel1 = 0;
     let pixel2 = 0;
 
-    pixel1 += (byte & 1) === 1 ? 1 : 0;
-    pixel1 += (byte >> 1 & 1) === 1 ? 2 : 0;
-    pixel1 += (byte >> 2 & 1) === 1 ? 4 : 0;
-    pixel1 += (byte >> 3 & 1) === 1 ? 8 : 0;
-    pixel2 += (byte >> 4 & 1) === 1 ? 1 : 0;
-    pixel2 += (byte >> 5 & 1) === 1 ? 2 : 0;
-    pixel2 += (byte >> 6 & 1) === 1 ? 4 : 0;
-    pixel2 += (byte >> 7 & 1) === 1 ? 8 : 0;
+    pixel1 += (byte >> 4 & 1) === 1 ? 1 : 0;
+    pixel1 += (byte >> 5 & 1) === 1 ? 2 : 0;
+    pixel1 += (byte >> 6 & 1) === 1 ? 4 : 0;
+    pixel1 += (byte >> 7 & 1) === 1 ? 8 : 0;
+    pixel2 += (byte & 1) === 1 ? 1 : 0;
+    pixel2 += (byte >> 1 & 1) === 1 ? 2 : 0;
+    pixel2 += (byte >> 2 & 1) === 1 ? 4 : 0;
+    pixel2 += (byte >> 3 & 1) === 1 ? 8 : 0;
+    // pixel1 += (byte & 1) === 1 ? 1 : 0;
+    // pixel1 += (byte >> 1 & 1) === 1 ? 2 : 0;
+    // pixel1 += (byte >> 2 & 1) === 1 ? 4 : 0;
+    // pixel1 += (byte >> 3 & 1) === 1 ? 8 : 0;
+    // pixel2 += (byte >> 4 & 1) === 1 ? 1 : 0;
+    // pixel2 += (byte >> 5 & 1) === 1 ? 2 : 0;
+    // pixel2 += (byte >> 6 & 1) === 1 ? 4 : 0;
+    // pixel2 += (byte >> 7 & 1) === 1 ? 8 : 0;
 
     if (translateValues) {
       unpackedData[n++] = values[pixel1];
@@ -253,11 +252,23 @@ const packDepth2Data = (unpackedData, translateValues) => {
   let n = 0;
 
   while (i < unpackedData.length) {
-    let pixel1 = unpackedData[i++];
-    let pixel2 = unpackedData[i++];
-    let pixel3 = unpackedData[i++];
-    let pixel4 = unpackedData[i++];
-    let byte;
+  let pixel1 = unpackedData[i++];
+  let pixel2 = unpackedData[i++];
+  let pixel3 = unpackedData[i++];
+  let pixel4 = unpackedData[i++];
+  let byte;
+
+  //  if (translateValues) {
+  //   byte = values[pixel1];
+  //   byte += values[pixel2] << 2;
+  //   byte += values[pixel3] << 4;
+  //   byte += values[pixel4] << 6;
+  // } else {
+  //   byte = pixel1;
+  //   byte += pixel2 << 2;
+  //   byte += pixel3 << 4;
+  //   byte += pixel4 << 6;
+  // }
 
     if (translateValues) {
       byte = values[pixel1] << 6;
@@ -304,11 +315,11 @@ const packDepth4Data = (unpackedData, translateValues) => {
     let byte;
 
     if (translateValues) {
-      byte = values[pixel1];
-      byte += values[pixel2] << 4;
+      byte = values[pixel1] << 4;
+      byte |= values[pixel2];
     } else {
-      byte = pixel1;
-      byte += pixel2 << 4;
+      byte = pixel1 << 4;
+      byte |= pixel2;
     }
     packedData[n++] = byte;
   }

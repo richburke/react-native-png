@@ -3,6 +3,7 @@
  * https://www.w3.org/TR/PNG/
  * http://www.libpng.org/pub/png/
  * http://www.schaik.com/pngsuite/
+ * https://www.xarg.org/2010/03/generate-client-side-png-files-using-javascript/
  */
 
 import {
@@ -196,6 +197,9 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       });
       _chunks.set(ctxt, chunks);
       chunk = _chunks.get(ctxt)[chunkHeader];
+
+      console.log(chunkHeader, bufView);
+
       chunk.load(bufView);
       break;
 
@@ -210,8 +214,6 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       break;
 
     case 'IDAT':
-      console.log(chunkHeader, bufView);
-
       chunk = _chunks.get(ctxt)[chunkHeader];
       chunk.applyLayoutInformation({
         width: _width.get(ctxt),
@@ -221,6 +223,10 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
         numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
       });
       chunk.load(bufView);
+
+      console.log(chunkHeader, bufView);
+
+
       break;
 
     default:
@@ -233,8 +239,9 @@ const _translateXyToIndex = (ctxt, x, y) => {
   const width = _width.get(ctxt);
   const colorType = _colorType.get(ctxt);
   const pixelColorSize = determinePixelColorSize(colorType);
-  const hasAlphaSample = hasAlphaSample(colorType);
-  const fullPixelSize = pixelColorSize + (hasAlphaSample ? 1 : 0);
+  const fullPixelSize = pixelColorSize + (hasAlphaSample(colorType) ? 1 : 0);
+
+  console.log('translate', width, colorType, pixelColorSize, fullPixelSize);
 
   return y * (width * fullPixelSize) + (x * fullPixelSize);
 };
@@ -354,12 +361,10 @@ export default class RnPng {
     return _buffer.get(this);
   }
 
-  from(buffer) {
-    const bufView = buffer instanceof Uint8Array
-      ? buffer
-      : Uint8Array.from(buffer);
-
-      console.log('on load', buffer);
+  from(bufView) {
+    if (!(bufView instanceof Uint8Array) && !(bufView instanceof Uint8ClampedArray)) {
+      throw new Error('A Uint8Array or Uint8ClampledArray is required for loading PNG data');
+    }
 
     if (!_chunks.get(this).prefix.verify(bufView)
       || !_chunks.get(this).IHDR.verify(bufView)
@@ -419,6 +424,7 @@ export default class RnPng {
   }
 
   getPalette() {
+    console.log('getPalette()');
     if (!_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette indices when no palette exists');
     }
@@ -426,6 +432,8 @@ export default class RnPng {
   }
 
   getPaletteIndexAt(pos) {
+    console.log('getPaletteIndexAt()');
+
     if (!_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette index when no palette exists');
     }
@@ -446,6 +454,8 @@ export default class RnPng {
   }
 
   getPaletteColorAt(pos) {
+    console.log('getPaletteColorAt()');
+
     if (!_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette color when no palette exists');
     }
@@ -494,7 +504,7 @@ export default class RnPng {
     return undefined;
   }
 
-  setPixel(pos, data) {
+  getPixelAt(pos) {
     let index;
     if (Array.isArray(pos) && pos.length === 2) {
       index = _translateXyToIndex(this, ...pos);
@@ -502,7 +512,45 @@ export default class RnPng {
       index = pos;
     }
 
-    const fullPixelSize = determineFullPixelSize(this._colorType);
+    if (this.hasAlphaChannel()) {
+      return _chunks.get(this).IDAT.getPixelOf(index);
+    }
+
+    let pixel = _chunks.get(this).IDAT.getPixelOf(index);
+
+    if (this.isIndexed()) {
+      // Convert the pixel value to the pixel's actual colors.
+      const pixelIndex = pixel;
+      pixel = _chunks.get(this).PLTE.getColorOf(pixelIndex);
+
+      // console.log('getPixelAt(), pixel, pixelIndex', pixel, pixelIndex);
+
+      if (_doesContainChunk(this, 'tRNS')) {
+        let opacity = _chunks.get(this).tRNS.getValueOf(pixelIndex);
+        pixel = pixel.concat('undefined' === typeof opacity ? 255 : opacity);
+      }
+
+      // console.log('getPixelAt(), pixel is now', pixel);
+    }
+
+    return pixel;
+  }
+
+  setPixelAt(pos, data) {
+    let index;
+    if (Array.isArray(pos) && pos.length === 2) {
+      index = _translateXyToIndex(this, ...pos);
+    } else {
+      index = pos;
+    }
+
+    if (!Array.isArray(data)) {
+      data = [data];
+    }
+
+    const fullPixelSize = this.isIndexed()
+      ? 3
+      : determineFullPixelSize(_colorType.get(this));
     if (data.length < fullPixelSize) {
       throw new Error(`Not enough samples supplied for pixel; expected ${fullPixelSize}`);
     }
@@ -518,10 +566,13 @@ export default class RnPng {
     data = data.slice(0, fullPixelSize + 1);
     const colorData = data.slice(0, fullPixelSize);
     const opacityData = data.length > fullPixelSize
-      ? data[data.length]
+      ? data[data.length - 1]
       : undefined;
 
     if (this.isIndexed()) {
+      // console.log('is color in palette', data, colorData, opacityData,
+      // _chunks.get(this).PLTE.isColorInPalette(colorData));
+
       const paletteIndex = _chunks.get(this).PLTE.isColorInPalette(colorData)
         ? _chunks.get(this).PLTE.getPaletteIndex(colorData)
         : _chunks.get(this).PLTE.addColor(colorData);
@@ -529,7 +580,7 @@ export default class RnPng {
       _chunks.get(this).IDAT.setPixelOf(index, paletteIndex);
 
       if ('undefined' !== typeof opacityData) {
-        this.setTransparency(colorData, paletteIndex);
+        this.setTransparency(opacityData, paletteIndex);
       }
 
       return this;

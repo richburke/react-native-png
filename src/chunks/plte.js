@@ -63,6 +63,7 @@ export default class PLTE extends Chunk {
 
     console.log('load PLTE', abuf)
 
+    // for (let i = 0; i < colorInfo.length; i += SAMPLES_PER_ENTRY) {
     for (let i = 0; i < paletteSize; i += SAMPLES_PER_ENTRY) {
       this.addColor([
         colorInfo[i],
@@ -104,10 +105,11 @@ export default class PLTE extends Chunk {
 
 
     for (let j = 0; j < paletteEntries.length; j++) {
-      console.log('getIndexOf ->', hashPixelData(paletteEntries[j][1]));
+      // console.log('getIndexOf ->', hashPixelData(paletteEntries[j][1]));
 
       if (testColorKey === hashPixelData(paletteEntries[j][1])) {
         let x = unhashPixelIndexKey(paletteEntries[j][0]);
+        console.log('found palette index', x);
         return x;
         // return unhashPixelIndexKey(paletteEntries[j][0]);
       }
@@ -129,9 +131,14 @@ export default class PLTE extends Chunk {
 
     // console.log('paletteEntries', paletteEntries);
 
+    console.log('paletteIndices', paletteIndices)
+    console.log(this.getPalette())
+
     for (let i = 0; i < paletteIndices.length; i++) {
       let paletteIndex = paletteIndices[i];
       let pixel = this.getColorOf(paletteIndex);
+
+      // console.log('found pixel', pixel);
 
       // console.log('pixel', pixel);
       if ('undefined' === typeof pixel || !Array.isArray(pixel) || 3 !== pixel.length) {
@@ -146,6 +153,8 @@ export default class PLTE extends Chunk {
   }
 
   setColorOf(index, colorData) {
+    // console.log('setColorOf()', index, colorData);
+
     const hashedIndex = hashPixelIndexKey(index);
     if ('undefined' === typeof this._palette[hashedIndex]
       && this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {

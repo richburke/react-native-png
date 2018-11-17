@@ -31,18 +31,21 @@ export const determinePixelColorSize = (colorType) =>
 export const determineFullPixelSize = (colorType) =>
   determinePixelColorSize(colorType) + (hasAlphaSample(colorType) ? 1 : 0);
 
-export const determineDataRowLength = (depth, colorType, width) => {
+export const determineBytesPerPixel = (depth, colorType) => {
   if (BitDepths.ONE === depth) {
-    return Math.ceil(width / 8);
+    return 1 / 8;
   }
   if (BitDepths.TWO === depth) {
-    return Math.ceil(width / 4);
+    return 1 / 4;
   }
   if (BitDepths.FOUR === depth) {
-    return Math.ceil(width / 2);
+    return 1 / 2;
   }
-  return determineFullPixelSize(colorType) * width;
+  return determineFullPixelSize(colorType);
 };
+
+export const determineDataRowLength = (depth, colorType, width) => 
+  Math.ceil(determineBytesPerPixel(depth, colorType) * width);
 
 export const determineTransparencySamplesPerEntry = (colorType) =>
   isTruecolor(colorType)

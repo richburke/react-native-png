@@ -129,6 +129,15 @@ export default class tRNS extends Chunk {
     return -1;
   }
 
+  getValueOf(index) {
+    if (index >= this._numberOfPixels) {
+      throw new Error('Attempting to get a transparency out of range of pixels');
+    }
+
+    return this._transparencies[index];
+  }
+
+
   isTransparencySet(colorData) {
     return this.getIndexOf(colorData) !== -1;
   }
@@ -140,21 +149,27 @@ export default class tRNS extends Chunk {
    * that should be considered transparent.
    */
   setTransparency(colorData, index = -1) {
-    if (index >= this._numberOfPixels) {
-      throw new Error('Attempting to set a opacity out of range of pixels');
-    }
-
     if (!Array.isArray(colorData)) {
       colorData = [colorData];
     }
 
     if (isIndexed(this._colorType) && index > this._transparencies.length) {
+      /**
+       * @todo
+       * Confirm that index is within available palette indexes.
+       * RnPng can do that.
+       */
       for (let i = this._transparencies.length; i < index; i++) {
         this._transparencies[i] = [255];
+      }
+    } else {
+      if (index >= this._numberOfPixels) {
+        throw new Error('Attempting to set a transparency out of range of pixels');
       }
     }
 
     if (-1 !== index) {
+      console.log('Setting transparency to ...', index, colorData);
       this._transparencies[index] = colorData;
       return index;
     }

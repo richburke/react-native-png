@@ -3,9 +3,13 @@
  */
 
 const defilterSub = (rowData, bytesPerPixel) => {
+  bytesPerPixel = bytesPerPixel < 1 ? 1 : bytesPerPixel;
   const rowSize = rowData.byteLength;
+
   for (let i = bytesPerPixel; i < rowSize; i++) {
+    // console.log('filter, row data', rowData, i, i - bytesPerPixel)
     rowData[i] = (rowData[i] + rowData[i - bytesPerPixel]) & 255;
+    // rowData[i] = (rowData[i] + rowData[i - bytesPerPixel]) & 255;
   }
 };
 
@@ -17,6 +21,7 @@ const defilterUp = (rowData, previousRowData) => {
 };
 
 const defilterAverage = (rowData, bytesPerPixel, previousRowData) => {
+  bytesPerPixel = bytesPerPixel < 1 ? 1 : bytesPerPixel;
   const rowSize = rowData.byteLength;
   for (let i = bytesPerPixel; i < rowSize; i++) {
     rowData[i] = Math.floor((rowData[i - bytesPerPixel] + previousRowData[i]) / 2) & 255;
@@ -40,6 +45,7 @@ const computePaeth = (left, above, aboveLeft) => {
 };
 
 const defilterPaeth = (rowData, bytesPerPixel, previousRowData) => {
+  bytesPerPixel = bytesPerPixel < 1 ? 1 : bytesPerPixel;
   const rowSize = rowData.byteLength;
   let previousPixelIndex;
   let left;
@@ -60,8 +66,8 @@ const defilterPaeth = (rowData, bytesPerPixel, previousRowData) => {
   }
 }
 
-export const defilter = (imageAndFilterData, width, bytesPerPixel) => {
-  const rowSize = width * bytesPerPixel + 1;
+export const defilter = (imageAndFilterData, dataRowLength, bytesPerPixel) => {
+  const rowSize = dataRowLength + 1;
   let filter;
   let scanLine;
   let previousRow;
