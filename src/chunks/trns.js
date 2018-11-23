@@ -1,3 +1,9 @@
+/*
+ * "The tRNS chunk specifies either alpha values that are associated with palette
+ * entries (for indexed-colour images) or a single transparent colour (for greyscale 
+ * and truecolour images)"
+ */
+
 import Chunk from './chunk';
 import {
   readUint8At,
@@ -9,6 +15,7 @@ import {
   isTruecolor,
   isIndexed,
   determineTransparencySamplesPerEntry,
+  determineTransparencySpacePerSample,
   hashPixelData
 } from '../util/png-pixels';
 
@@ -23,6 +30,8 @@ export default class tRNS extends Chunk {
     this._maxNumberOfColors = options.maxNumberOfColors;
 
     this._transparencies = [];
+
+    this._hold;
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
@@ -44,9 +53,13 @@ export default class tRNS extends Chunk {
     const chunkLength = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
 
+    console.log('PAYLOAD SIZE -->', payloadSize)
+
     this.initialize(chunkLength);
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
+
+    console.log('updating tRNS, _transparencies', this._transparencies)
 
     if (isIndexed(this._colorType)) {
       for (let i = 0; i < this._transparencies.length; i++) {
@@ -63,53 +76,53 @@ export default class tRNS extends Chunk {
       });
     }
 
+    console.log('this is what tRNS should look like --->', this._hold);
+
     const crc = this.calculateCrc32();
     this.buffer.writeUint32(crc);
   }
 
   load(abuf) {
+    /**
+    const x = abuf.subarray(0, 18);
+    console.log('tRNS ---', x);
+    this._hold = x;
+    */
+
+    const suppliedLimit = readUint32At(abuf, 0);
     const transparencyInfo = abuf.subarray(
       this.calculateDataOffset(),
-      abuf.length - this.calculateDataOffset() - 4
+      this.calculateDataOffset() + suppliedLimit
     );
 
     console.log('loading tRNS', transparencyInfo);
 
-    const suppliedLimit = readUint32At(abuf, 0);
-    // const dataLimit = isTruecolor(this._colorType)
-    //   ? transparencyInfo.length / 3
-    //   : transparencyInfo.length;
-    const dataLimit = transparencyInfo.length;
-    const limit = Math.min(suppliedLimit, dataLimit);
-
     const samplesPerEntry = determineTransparencySamplesPerEntry(this._colorType);
 
+    // console.log('transparency info', samplesPerEntry, transparencyInfo)
     if (isTruecolor(this._colorType)) {
-      for (let i = 0, n = 0; i < limit; i += samplesPerEntry, n += 1) {
-        // let r = readUint8At(transparencyInfo, i, true);
+      for (let i = 0; i < suppliedLimit;) {
         let r = readUint16At(transparencyInfo, i);
-        // let g = readUint8At(transparencyInfo, i + 1, true);
-        let g = readUint16At(transparencyInfo, i + 2);
-        // let b = readUint8At(transparencyInfo, i + 2, true);
-        let b = readUint16At(transparencyInfo, i + 4);
+        i += 2;
+        let g = readUint16At(transparencyInfo, i);
+        i += 2;
+        let b = readUint16At(transparencyInfo, i);
+        i += 2;
+
+        // console.log('trns r, g, b is', [r, g, b], i);
         this.setTransparency([r, g, b]);
       }
     } else if (isGrayscale(this._colorType)) {
-      for (let i = 0, n = 0; i < limit; i += samplesPerEntry, n += 1) {
+      for (let i = 0, n = 0; i < suppliedLimit; i += samplesPerEntry, n += 1) {
         this.setTransparency([readUint16At(transparencyInfo, i)]);
       }
     } else {
-      for (let i = 0; i < limit; i += samplesPerEntry) {
+      for (let i = 0; i < suppliedLimit; i += samplesPerEntry) {
         this.setTransparency([readUint8At(transparencyInfo, i)]);
       }
     }
   }
 
-  /*
-   * "The tRNS chunk specifies either alpha values that are associated with palette
-   * entries (for indexed-colour images) or a single transparent colour (for greyscale 
-   * and truecolour images)"
-   */
   getTransparencies() {
     if (isGrayscale(this._colorType) || isIndexed(this._colorType)) {
       return this._transparencies.reduce((acc, curr) => {
@@ -198,10 +211,13 @@ export default class tRNS extends Chunk {
   }
 
   calculatePayloadSize() {
-    return this._transparencies.length;
+    const samplesPerEntry = determineTransparencySamplesPerEntry(this._colorType);
+    const spacePerSample = determineTransparencySpacePerSample(this._colorType);
+    return this._transparencies.length * samplesPerEntry * spacePerSample;
   }
 
   calculateChunkLength() {
+    // return 18;
     return super.calculateChunkLength() + this.calculatePayloadSize();
   }
 }

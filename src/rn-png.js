@@ -680,6 +680,12 @@ export default class RnPng {
   }
 
   setBackground(colorData) {
+    if (_doesContainChunk(this, 'PLTE') && !_doesContainChunk(this, 'bKGD')) {
+      // The color at palette index 0 effectively acts as the background color.
+      _chunks.get(this).PLTE.setColorOf(0, colorData);
+      return this;
+    }
+
     if (!_doesContainChunk(this, 'bKGD')) {
       _chunks.get(this).bKGD = new bKGD({
         colorType: _colorType.get(this),

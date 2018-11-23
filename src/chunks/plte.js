@@ -16,8 +16,8 @@ export default class PLTE extends Chunk {
     this._maxNumberOfColors = options.maxNumberOfColors;
     this._palette = {};
 
-    const chunkLength = this.calculateChunkLength();
-    this.initialize(chunkLength);
+    // const chunkLength = this.calculateChunkLength();
+    // this.initialize(chunkLength);
   }
 
   set maxNumberOfColors(value) {
@@ -25,8 +25,10 @@ export default class PLTE extends Chunk {
   }
 
   update() {
+    const chunkLength = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
 
+    this.initialize(chunkLength);
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 

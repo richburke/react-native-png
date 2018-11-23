@@ -59,7 +59,7 @@ export const readUint16At = (buffer, offset, lsb = false) => {
     value = buffer[newOffset++] & 255;
     value += buffer[newOffset++] << 8;
   } else {
-    value += buffer[newOffset++] << 8;
+    value = buffer[newOffset++] << 8;
     value += buffer[newOffset++] & 255;
   }
 

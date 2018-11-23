@@ -1,5 +1,9 @@
 import Chunk from './chunk';
 import {
+  readUint8At,
+  readUint16At,
+} from '../util/typed-array';
+import {
   determineBackgroundSamplesPerEntry,
   isIndexed,
 } from '../util/png-pixels';
@@ -38,23 +42,27 @@ export default class bKGD extends Chunk {
 
     const crc = this.calculateCrc32();
     this.buffer.writeUint32(crc);
-
-    return this;
   }
 
   load(abuf) {
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
-    this.buffer.copyInto(abuf, chunkLength);
+
+    // this.buffer.copyInto(abuf, chunkLength);
+
+    const backgroundInfo = abuf.subarray(
+      this.calculateDataOffset(),
+      this.calculateDataOffset() + this.calculatePayloadSize()
+    );
 
     const dataOffset = this.calculateDataOffset();
     let color = [];
     if (isIndexed(this._colorType)) {
-      color.push(this.buffer.readUint8At(dataOffset));
+      color.push(readUint8At(backgroundInfo, dataOffset));
     } else {
       const numberOfSamples = determineBackgroundSamplesPerEntry(this._colorType);
       for (let i = 0, offset = dataOffset; i < numberOfSamples; i++, offset += 2) {
-        color.push(this.buffer.readUint16At(dataOffset, true));
+        color.push(readUint16At(backgroundInfo, dataOffset, true));
       }
     }
     this.setBackgroundColor(color);

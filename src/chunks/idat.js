@@ -47,10 +47,9 @@ export default class IDAT extends Chunk {
 
     this._zlibLib = null;
 
-    const chunkLength = this.calculateChunkLength();
-    this.initialize(chunkLength);
-    const pixelAndFilterSize = this.calculatePixelAndFilterSize();
-    this._pixelData = new Uint8ClampedArray(pixelAndFilterSize);
+    // const chunkLength = this.calculateChunkLength();
+    // this.initialize(chunkLength);
+    this._initializePixelData();
 
     this._should;
     this._hold;
@@ -105,9 +104,10 @@ export default class IDAT extends Chunk {
   }
 
   update() {
-    const chunkSize = this.calculateChunkLength();
+    const chunkLength = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
 
+    this.initialize(chunkLength);
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
@@ -156,7 +156,7 @@ export default class IDAT extends Chunk {
     const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
     console.log('deflating pixel data, length ...-->', compressedPixelAndFilterData);
 
-    console.log('This is what IDAT should look like -->', this._should)
+    // console.log('This is what IDAT should look like -->', this._should)
 
     console.log('this is what IDAT would look like -->', compressedPixelAndFilterData);
 
@@ -164,7 +164,9 @@ export default class IDAT extends Chunk {
     this.buffer.copyFrom(compressedPixelAndFilterData);
 
     const crc = this.calculateCrc32();
-    this.buffer.writeUint32At(chunkSize - CHUNK_CRC32_SIZE, crc);
+    this.buffer.writeUint32At(chunkLength - CHUNK_CRC32_SIZE, crc);
+
+    console.log('done writing IDAT buffer')
 
     // this.buffer.copyFrom(this._hold);
   }
@@ -177,7 +179,7 @@ export default class IDAT extends Chunk {
     const dataOffset = this.calculateDataOffset();
     const compressedZlibData = abuf.subarray(dataOffset, dataOffset + payloadSize);
 
-    this._should = compressedZlibData;
+    // this._should = compressedZlibData;
 
     // const compressedZlibData = abuf.subarray(dataOffset, dataOffset + 91);
 
@@ -199,66 +201,34 @@ export default class IDAT extends Chunk {
     //   );
     // } else {
     //   // ?? merge
-      defilter(uncompressedData, dataRowLength, bytesPerPixel);
+    defilter(uncompressedData, dataRowLength, bytesPerPixel);
     const pixelOnlyData = Uint8ClampedArray.from(
-        removeFilterFields(
-          uncompressedData,
-          // 8,
-          dataRowLength,
-          this._height
-        )
-      );
+      removeFilterFields(
+        uncompressedData,
+        dataRowLength,
+        this._height
+      )
+    );
       // pixelOnlyData = uncompressedData;
     // }
 
     // this._hold = pixelOnlyData;
 
-    console.log('uncompressed data is now', uncompressedData);
+    // console.log('uncompressed data is now', uncompressedData);
 
-    this._hold = pixelOnlyData;
+    // this._hold = pixelOnlyData;
 
 
     // width / pixelsPerByte
     // 32 / 4
 
-    console.log('pixels only -->', pixelOnlyData);
+    // console.log('pixels only -->', pixelOnlyData);
 
     this._pixelData = Uint8ClampedArray.from(
       unpackByteData(pixelOnlyData, this._depth, !isIndexed(this._colorType))
     );
 
     console.log('= --->', this._pixelData);
-  }
-
-  _setSingleValuePixel(index, value) {
-    // if (index >= this._numberOfPixels * this._pixelSize) {
-    //   console.log('problem index', index, value);
-    //   throw new Error('Index out of range for pixels');
-    // }
-    this._pixelData[index] = value;
-  }
-
-  // _setRgbPixel(index, pixel) {
-  //   this._pixelData[index++] = pixel[0]; // red
-  //   this._pixelData[index++] = pixel[1]; // green
-  //   this._pixelData[index++] = pixel[2]; // blue
-  // }
-
-  // _setRgbaPixel(index, pixel) {
-  //   this._pixelData[index++] = pixel[0]; // red
-  //   this._pixelData[index++] = pixel[1]; // green
-  //   this._pixelData[index++] = pixel[2]; // blue
-  //   this._pixelData[index++] = pixel[3]; // alpha
-  // }
-
-  _setAlpha(index, value) {
-    this._pixelData[index + 3] = value; // alpha
-  }
-
-  _setSamples(startIndex, value) {
-    value.forEach((sample, sampleIndex) => {
-      this._pixelData[startIndex + sampleIndex] = sample;
-    });
   }
 
   setPixelOf(index, pixel) {
@@ -317,9 +287,13 @@ export default class IDAT extends Chunk {
     return pixelData;
   }
 
-  calculatePixelAndFilterSize() {
+  calculateDataSize() {
     const fullPixelSize = determineFullPixelSize(this._colorType);
-    return (this._width * fullPixelSize + 1) * this._height;
+    return this._width * fullPixelSize * this._height;
+  }
+
+  calculatePixelAndFilterSize() {
+    return this.calculateDataSize() + this._height;
   }
 
   calculatePayloadSize(pixelAndFilterSize = -1) {
@@ -333,10 +307,44 @@ export default class IDAT extends Chunk {
   }
 
   calculateChunkLength(payloadSize = -1) {
-    // return 32;
     if (payloadSize === -1) {
       payloadSize = this.calculatePayloadSize();
     }
     return super.calculateChunkLength() + payloadSize;
+  }
+
+  _initializePixelData() {
+    this._pixelData = new Uint8ClampedArray(this.calculateDataSize());
+  }
+
+  _setSingleValuePixel(index, value) {
+    // if (index >= this._numberOfPixels * this._pixelSize) {
+    //   console.log('problem index', index, value);
+    //   throw new Error('Index out of range for pixels');
+    // }
+    this._pixelData[index] = value;
+  }
+
+  // _setRgbPixel(index, pixel) {
+  //   this._pixelData[index++] = pixel[0]; // red
+  //   this._pixelData[index++] = pixel[1]; // green
+  //   this._pixelData[index++] = pixel[2]; // blue
+  // }
+
+  // _setRgbaPixel(index, pixel) {
+  //   this._pixelData[index++] = pixel[0]; // red
+  //   this._pixelData[index++] = pixel[1]; // green
+  //   this._pixelData[index++] = pixel[2]; // blue
+  //   this._pixelData[index++] = pixel[3]; // alpha
+  // }
+
+  _setAlpha(index, value) {
+    this._pixelData[index + 3] = value; // alpha
+  }
+
+  _setSamples(startIndex, value) {
+    value.forEach((sample, sampleIndex) => {
+      this._pixelData[startIndex + sampleIndex] = sample;
+    });
   }
 }
