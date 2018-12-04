@@ -145,7 +145,7 @@ const _buildBuffer = (ctxt) => {
     return acc + size;
   }, 0);
 
-  console.log(chunkSizes, totalSize)
+  // console.log(chunkSizes, totalSize)
 
   const bufView = new Uint8Array(new ArrayBuffer(totalSize));
 
@@ -167,7 +167,7 @@ const _buildBuffer = (ctxt) => {
 const _loadChunk = (ctxt, chunkHeader, bufView) => {
   let chunks;
   let chunk;
-  console.log(`I have a ${chunkHeader}`);
+  // console.log(`I have a ${chunkHeader}`);
   switch (chunkHeader) {
     case 'IHDR':
       chunk = _chunks.get(ctxt)[chunkHeader];
@@ -185,7 +185,7 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       _chunks.set(ctxt, chunks);
       chunk = _chunks.get(ctxt)[chunkHeader];
 
-      console.log(chunkHeader, bufView);
+      // console.log(chunkHeader, bufView);
 
       chunk.load(bufView);
       break;
@@ -198,7 +198,7 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       _chunks.set(ctxt, chunks);
       chunk = _chunks.get(ctxt)[chunkHeader];
 
-      console.log(chunkHeader, bufView);
+      // console.log(chunkHeader, bufView);
 
       chunk.load(bufView);
       break;
@@ -224,7 +224,7 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
       });
       chunk.load(bufView);
 
-      console.log(chunkHeader, bufView);
+      // console.log(chunkHeader, bufView);
 
 
       break;
@@ -241,7 +241,7 @@ const _translateXyToIndex = (ctxt, x, y) => {
   const pixelColorSize = determinePixelColorSize(colorType);
   const fullPixelSize = pixelColorSize + (hasAlphaSample(colorType) ? 1 : 0);
 
-  console.log('translate', width, colorType, pixelColorSize, fullPixelSize);
+  // console.log('translate', width, colorType, pixelColorSize, fullPixelSize);
 
   return y * (width * fullPixelSize) + (x * fullPixelSize);
 };
@@ -398,8 +398,8 @@ export default class RnPng {
       _loadChunk(this, chunkHeader, bufView.subarray(chunkHeaderIndex - CHUNK_LENGTH_SIZE));
     });
 
-    console.log('chunks', this.getChunksUsed());
-    console.log('metaData', this.getMetaData());
+    // console.log('chunks', this.getChunksUsed());
+    // console.log('metaData', this.getMetaData());
     // console.log('palette indices', this.getPaletteIndices());
 
     return this;
@@ -412,7 +412,7 @@ export default class RnPng {
   getData(pixelLayout = RnPng.PixelLayout.VALUE) {
     const rawPixelData = _chunks.get(this).IDAT.pixelData;
 
-    console.log('getData', rawPixelData);
+    // console.log('getData', rawPixelData);
 
     const pixelData = this.isIndexed()
       ? _chunks.get(this).PLTE.convertToPixels(rawPixelData)
@@ -424,7 +424,7 @@ export default class RnPng {
   }
 
   getPalette() {
-    console.log('getPalette()');
+    // console.log('getPalette()');
     if (!_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette indices when no palette exists');
     }
@@ -432,7 +432,7 @@ export default class RnPng {
   }
 
   getPaletteIndexAt(pos) {
-    console.log('getPaletteIndexAt()');
+    // console.log('getPaletteIndexAt()');
 
     if (!_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette index when no palette exists');
@@ -454,7 +454,7 @@ export default class RnPng {
   }
 
   getPaletteColorAt(pos) {
-    console.log('getPaletteColorAt()');
+    // console.log('getPaletteColorAt()');
 
     if (!_doesContainChunk(this, 'PLTE')) {
       throw new Error('Attempting to get palette color when no palette exists');
@@ -497,7 +497,7 @@ export default class RnPng {
   }
 
   getBackground() {
-    console.log('bkg', _doesContainChunk(this, 'bKGD'));
+    // console.log('bkg', _doesContainChunk(this, 'bKGD'));
     if (_doesContainChunk(this, 'bKGD')) {
       return _chunks.get(this).bKGD.getBackgroundColor();
     }

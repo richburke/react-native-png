@@ -118,14 +118,14 @@ export default class IDAT extends Chunk {
     ? Math.ceil(this._pixelData / (8 / bit depth));
     */
     // const packedPixelData = new Uint8ClampedArray(128);
-    console.log('packing data -->', this._pixelData);
+    // console.log('packing data -->', this._pixelData);
     const packedPixelData = Uint8ClampedArray.from(
       packByteData(this._pixelData, this._depth, !isIndexed(this._colorType))
     );
     // const packedPixelData = this._hold;
-    console.log('packed data -->!!!', packedPixelData);
+    // console.log('packed data -->!!!', packedPixelData);
     // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
-    console.log('adding filter fields -->');
+    // console.log('adding filter fields -->');
     // const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
     // this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
 
@@ -154,11 +154,11 @@ export default class IDAT extends Chunk {
     // console.log('deflating pixel data -->', this._hold);
     // const compressedPixelAndFilterData = this._zlibLib.deflate(this._hold);
     const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
-    console.log('deflating pixel data, length ...-->', compressedPixelAndFilterData);
+    // console.log('deflating pixel data, length ...-->', compressedPixelAndFilterData);
 
     // console.log('This is what IDAT should look like -->', this._should)
 
-    console.log('this is what IDAT would look like -->', compressedPixelAndFilterData);
+    // console.log('this is what IDAT would look like -->', compressedPixelAndFilterData);
 
     // this.buffer.copyFrom(this._should);
     this.buffer.copyFrom(compressedPixelAndFilterData);
@@ -166,7 +166,7 @@ export default class IDAT extends Chunk {
     const crc = this.calculateCrc32();
     this.buffer.writeUint32At(chunkLength - CHUNK_CRC32_SIZE, crc);
 
-    console.log('done writing IDAT buffer')
+    // console.log('done writing IDAT buffer')
 
     // this.buffer.copyFrom(this._hold);
   }
@@ -185,7 +185,7 @@ export default class IDAT extends Chunk {
 
     const uncompressedData = this._zlibLib.inflate(compressedZlibData);
 
-    console.log('uncompressed data -->', uncompressedData);
+    // console.log('uncompressed data -->', uncompressedData);
 
     const dataRowLength = determineDataRowLength(this._depth, this._colorType, this._width);
     const bytesPerPixel = determineBytesPerPixel(this._depth, this._colorType);
@@ -228,7 +228,7 @@ export default class IDAT extends Chunk {
       unpackByteData(pixelOnlyData, this._depth, !isIndexed(this._colorType))
     );
 
-    console.log('= --->', this._pixelData);
+    // console.log('= --->', this._pixelData);
   }
 
   setPixelOf(index, pixel) {

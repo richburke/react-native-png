@@ -35,7 +35,7 @@ export default class PLTE extends Chunk {
     const sorted = Object.entries(this._palette).sort((a, b) => 
       unhashPixelIndexKey(a[0]) - unhashPixelIndexKey(b[0]));
 
-    console.log('sorted -->', sorted);
+    // console.log('sorted -->', sorted);
 
     for (let i = 0; i < sorted.length; i++) {
       let rgb = sorted[i][1];
@@ -63,7 +63,7 @@ export default class PLTE extends Chunk {
       throw new Error('Invalid palette size supplied for PLTE chunk');
     }
 
-    console.log('load PLTE', abuf)
+    // console.log('load PLTE', abuf)
 
     // for (let i = 0; i < colorInfo.length; i += SAMPLES_PER_ENTRY) {
     for (let i = 0; i < paletteSize; i += SAMPLES_PER_ENTRY) {
@@ -74,7 +74,7 @@ export default class PLTE extends Chunk {
       ]);
     }
 
-    console.log('palette -->', paletteSize, this._palette);
+    // console.log('palette -->', paletteSize, this._palette);
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
@@ -99,11 +99,11 @@ export default class PLTE extends Chunk {
   }
 
   getPaletteIndex(colorData) {
-    console.log('getIndexOf', colorData);
+    // console.log('getIndexOf', colorData);
     const testColorKey = hashPixelData(colorData);
     const paletteEntries = Object.entries(this._palette);
 
-    console.log('paletteEntries ->', testColorKey, paletteEntries);
+    // console.log('paletteEntries ->', testColorKey, paletteEntries);
 
 
     for (let j = 0; j < paletteEntries.length; j++) {
@@ -111,7 +111,7 @@ export default class PLTE extends Chunk {
 
       if (testColorKey === hashPixelData(paletteEntries[j][1])) {
         let x = unhashPixelIndexKey(paletteEntries[j][0]);
-        console.log('found palette index', x);
+        // console.log('found palette index', x);
         return x;
         // return unhashPixelIndexKey(paletteEntries[j][0]);
       }
@@ -133,8 +133,8 @@ export default class PLTE extends Chunk {
 
     // console.log('paletteEntries', paletteEntries);
 
-    console.log('paletteIndices', paletteIndices)
-    console.log(this.getPalette())
+    // console.log('paletteIndices', paletteIndices)
+    // console.log(this.getPalette())
 
     for (let i = 0; i < paletteIndices.length; i++) {
       let paletteIndex = paletteIndices[i];

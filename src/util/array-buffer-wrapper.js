@@ -99,13 +99,13 @@ export default class ArrayBufferWrapper {
    * src, offset, length
    */
   copyInto(abuf, length = -1) {
-    console.log('copyInto', abuf);
+    // console.log('copyInto', abuf);
     const sourceLength = length < 0 ? abuf.length : length;
     let i;
     for (i = 0; i < sourceLength; i++) {
       this._bufferView[i] = abuf[i] & 255;
     }
-    console.log('after copyInto', i, this._bufferView.bytesLength);
+    // console.log('after copyInto', i, this._bufferView.bytesLength);
   }
 
   copyFrom(src, offset) {

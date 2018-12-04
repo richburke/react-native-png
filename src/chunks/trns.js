@@ -53,13 +53,13 @@ export default class tRNS extends Chunk {
     const chunkLength = this.calculateChunkLength();
     const payloadSize = this.calculatePayloadSize();
 
-    console.log('PAYLOAD SIZE -->', payloadSize)
+    // console.log('PAYLOAD SIZE -->', payloadSize)
 
     this.initialize(chunkLength);
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-    console.log('updating tRNS, _transparencies', this._transparencies)
+    // console.log('updating tRNS, _transparencies', this._transparencies)
 
     if (isIndexed(this._colorType)) {
       for (let i = 0; i < this._transparencies.length; i++) {
@@ -76,7 +76,7 @@ export default class tRNS extends Chunk {
       });
     }
 
-    console.log('this is what tRNS should look like --->', this._hold);
+    // console.log('this is what tRNS should look like --->', this._hold);
 
     const crc = this.calculateCrc32();
     this.buffer.writeUint32(crc);
@@ -95,7 +95,7 @@ export default class tRNS extends Chunk {
       this.calculateDataOffset() + suppliedLimit
     );
 
-    console.log('loading tRNS', transparencyInfo);
+    // console.log('loading tRNS', transparencyInfo);
 
     const samplesPerEntry = determineTransparencySamplesPerEntry(this._colorType);
 
@@ -182,7 +182,7 @@ export default class tRNS extends Chunk {
     }
 
     if (-1 !== index) {
-      console.log('Setting transparency to ...', index, colorData);
+      // console.log('Setting transparency to ...', index, colorData);
       this._transparencies[index] = colorData;
       return index;
     }

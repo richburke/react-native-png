@@ -41,7 +41,7 @@ export default class Chunk {
       // }
     // }
 
-    console.log('copyInto ->', this.header, this._abw.bufferView);
+    // console.log('copyInto ->', this.header, this._abw.bufferView);
     buffer.set(this._abw.bufferView, offset);
 
     // return this;
@@ -78,7 +78,7 @@ export default class Chunk {
   calculateCrc32(chunkLength = -1) {
     chunkLength = chunkLength !== -1 ? chunkLength : this.calculateChunkLength();
     const size = chunkLength - CHUNK_LENGTH_SIZE - CHUNK_CRC32_SIZE;
-    console.log('size -->', chunkLength, size);
+    // console.log('size -->', chunkLength, size);
     return calculateCrc32(this.buffer, CHUNK_LENGTH_SIZE, size);
   }
 

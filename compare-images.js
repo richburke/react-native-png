@@ -13,9 +13,9 @@ function doneReading() {
     if (++filesRead < 2) return;
 
     const x = Uint8Array.from(img1.data);
-    console.log('IMG data', x.length);
-    console.log(new Set(x));
-    console.log(x);
+    // console.log('IMG data', x.length);
+    // console.log(new Set(x));
+    // console.log(x);
 
     var diff = new PNG({width: img1.width, height: img1.height});
 
