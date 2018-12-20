@@ -7,9 +7,7 @@ const defilterSub = (rowData, bytesPerPixel) => {
   const rowSize = rowData.byteLength;
 
   for (let i = bytesPerPixel; i < rowSize; i++) {
-    // console.log('filter, row data', rowData, i, i - bytesPerPixel)
     rowData[i] = (rowData[i] + rowData[i - bytesPerPixel]) & 255;
-    // rowData[i] = (rowData[i] + rowData[i - bytesPerPixel]) & 255;
   }
 };
 
@@ -36,10 +34,10 @@ const computePaeth = (left, above, aboveLeft) => {
 
   if (deltaLeft <= deltaAbove &&
     deltaLeft <= deltaAboveLeft) {
-      return left;
+    return left;
   }
   if (deltaAbove <= deltaAboveLeft) {
-      return above;
+    return above;
   }
   return aboveLeft;
 };
@@ -64,7 +62,7 @@ const defilterPaeth = (rowData, bytesPerPixel, previousRowData) => {
     above = typeof previousRowData === 'undefined' ? 0 : previousRowData[i];
     rowData[i] = (rowData[i] + computePaeth(left, above, aboveLeft)) & 255;
   }
-}
+};
 
 export const defilter = (imageAndFilterData, dataRowLength, bytesPerPixel) => {
   const rowSize = dataRowLength + 1;
@@ -78,42 +76,23 @@ export const defilter = (imageAndFilterData, dataRowLength, bytesPerPixel) => {
     firstDataByteIndex = i + 1;
 
     scanLine = imageAndFilterData.subarray(firstDataByteIndex, firstDataByteIndex + rowSize - 1);
-    // console.log('FILTER', filter);
-    if (filter === 0) {
-      // console.log('filter is none', bytesPerPixel);
-    }
     if (filter === 1) {
-      // console.log('filter is sub', bytesPerPixel);
       defilterSub(scanLine, bytesPerPixel);
     }
     if (filter === 2) {
-      // console.log('filter is up');
       defilterUp(scanLine, previousRow, i);
     }
     if (filter === 3) {
-      // console.log('filter is average!');
       defilterAverage(scanLine, bytesPerPixel, previousRow);
     }
     if (filter === 4) {
-      // console.log('filter is paeth!');
       defilterPaeth(scanLine, bytesPerPixel, previousRow);
     }
 
     imageAndFilterData[i] = 0;
     previousRow = scanLine.slice(0);
   }
-
-  /*
-  let s = '\n';
-  for (let i=0, n = imageAndFilterData.byteLength; i < n; i++) {
-    s += '|' + imageAndFilterData[i];
-    if ((i + 1) % 4 === 0) {
-      s += '\n';
-    }
-  }
-  console.log(s);
-  */
-}
+};
 
 export const removeFilterFields = (pixelAndFilterData, dataRowSize, height) => {
   const scanlineStep = dataRowSize + 1;
@@ -122,7 +101,6 @@ export const removeFilterFields = (pixelAndFilterData, dataRowSize, height) => {
   for (let i = 0, n = 0; i < pixelAndFilterData.length; i += scanlineStep, n += dataRowSize) {
     let currentIndex = i + 1;
     let s = pixelAndFilterData.subarray(currentIndex, currentIndex + dataRowSize);
-    // console.log('-->', i, n, s);
     pixelOnlyData.set(s, n);
   }
   return pixelOnlyData;
@@ -130,20 +108,11 @@ export const removeFilterFields = (pixelAndFilterData, dataRowSize, height) => {
 
 export const addFilterFields = (pixelOnlyData, dataRowSize, height) => {
   const scanlineStep = dataRowSize + 1;
-  // console.log('pixelOnlyData length', pixelOnlyData.length);
-  // let pixelAndFilterData = new Uint8ClampedArray(pixelOnlyData.length + 64);
   let pixelAndFilterData = new Uint8ClampedArray(pixelOnlyData.length + height);
 
-  // console.log(pixelAndFilterData.length, dataRowSize, height, scanlineStep);
-
   for (let i = 0, n = 0, x = 0; x < height; i += dataRowSize, n += scanlineStep, x++) {
-  // for (let i = 0, n = 0, x = 1; i < pixelOnlyData.length; i += dataRowSize, n += scanlineStep, x++) {
-    // console.log('getting t')
     let t = pixelOnlyData.subarray(i, i + dataRowSize);
     let s = [0, ...t];
-    // console.log(x, i);
-    // console.log(x, t, s)
-    // console.log('setting scanline');
     pixelAndFilterData.set(s, n);
   }
   return pixelAndFilterData;

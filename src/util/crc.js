@@ -66,7 +66,6 @@ const _TABLE = new Int32Array([
 ]);
 
 export const calculateCrc32 = (buffer, start, end) => {
-  // return CRC.buf(buffer);
   let crc = -1;
   for (let i = 0; i < end; i++) {
     const byte = buffer.get(start + i);

@@ -48,8 +48,6 @@ export default class bKGD extends Chunk {
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
 
-    // this.buffer.copyInto(abuf, chunkLength);
-
     const backgroundInfo = abuf.subarray(
       this.calculateDataOffset(),
       this.calculateDataOffset() + this.calculatePayloadSize()

@@ -1,7 +1,6 @@
 import Chunk, { CHUNK_CRC32_SIZE } from './chunk';
 import {
   ChunkHeaderSequences,
-  BitDepths,
   PixelLayouts,
 } from '../util/constants';
 import {
@@ -46,9 +45,6 @@ export default class IDAT extends Chunk {
     });
 
     this._zlibLib = null;
-
-    // const chunkLength = this.calculateChunkLength();
-    // this.initialize(chunkLength);
     this._initializePixelData();
 
     this._should;
@@ -111,64 +107,24 @@ export default class IDAT extends Chunk {
     this.buffer.writeUint32(payloadSize);
     this.buffer.writeString8(HEADER);
 
-    // console.log('updating -->', this._pixelData.length, this._height);
-
-    /*
-    differs by bit depth
-    ? Math.ceil(this._pixelData / (8 / bit depth));
-    */
-    // const packedPixelData = new Uint8ClampedArray(128);
-    // console.log('packing data -->', this._pixelData);
     const packedPixelData = Uint8ClampedArray.from(
       packByteData(this._pixelData, this._depth, !isIndexed(this._colorType))
     );
-    // const packedPixelData = this._hold;
-    // console.log('packed data -->!!!', packedPixelData);
-    // const packedPixelData = Uint8ClampedArray.from(this._pixelData);
-    // console.log('adding filter fields -->');
-    // const pixelAndFilterData = new Uint8ClampedArray(packedPixelData.length + this._height);
-    // this.prependFilterFields(packedPixelData, pixelAndFilterData, 4);
 
-    // let pixelAndFilterData;
-    // if (this._depth >= BitDepths.EIGHT && !isIndexed(this._colorType)) {
-    //   pixelAndFilterData = Uint8ClampedArray.from(
-    //     addFilterFields(
-    //       packedPixelData,
-    //       determineDataRowLength(this._depth, this._colorType, this._width),
-    //       this._height
-    //     )
-    //   );
-    // } else {
-      const dataRowLength = determineDataRowLength(this._depth, this._colorType, this._width);
-      const pixelAndFilterData = Uint8ClampedArray.from(
-        addFilterFields(
-          packedPixelData,
-          // 8,
-          dataRowLength,
-          this._height
-        )
-      );
-      // pixelAndFilterData = packedPixelData;
-    // }
+    const dataRowLength = determineDataRowLength(this._depth, this._colorType, this._width);
+    const pixelAndFilterData = Uint8ClampedArray.from(
+      addFilterFields(
+        packedPixelData,
+        dataRowLength,
+        this._height
+      )
+    );
 
-    // console.log('deflating pixel data -->', this._hold);
-    // const compressedPixelAndFilterData = this._zlibLib.deflate(this._hold);
     const compressedPixelAndFilterData = this._zlibLib.deflate(pixelAndFilterData);
-    // console.log('deflating pixel data, length ...-->', compressedPixelAndFilterData);
-
-    // console.log('This is what IDAT should look like -->', this._should)
-
-    // console.log('this is what IDAT would look like -->', compressedPixelAndFilterData);
-
-    // this.buffer.copyFrom(this._should);
     this.buffer.copyFrom(compressedPixelAndFilterData);
 
     const crc = this.calculateCrc32();
     this.buffer.writeUint32At(chunkLength - CHUNK_CRC32_SIZE, crc);
-
-    // console.log('done writing IDAT buffer')
-
-    // this.buffer.copyFrom(this._hold);
   }
 
   load(abuf) {
@@ -178,29 +134,11 @@ export default class IDAT extends Chunk {
     const payloadSize = readUint32At(abuf, 0);
     const dataOffset = this.calculateDataOffset();
     const compressedZlibData = abuf.subarray(dataOffset, dataOffset + payloadSize);
-
-    // this._should = compressedZlibData;
-
-    // const compressedZlibData = abuf.subarray(dataOffset, dataOffset + 91);
-
     const uncompressedData = this._zlibLib.inflate(compressedZlibData);
-
-    // console.log('uncompressed data -->', uncompressedData);
 
     const dataRowLength = determineDataRowLength(this._depth, this._colorType, this._width);
     const bytesPerPixel = determineBytesPerPixel(this._depth, this._colorType);
-    // let pixelOnlyData;
-    // if (this._depth >= BitDepths.EIGHT && !isIndexed(this._colorType)) {
-    //   defilter(uncompressedData, this._width, fullPixelSize);
-    //   pixelOnlyData = Uint8ClampedArray.from(
-    //     removeFilterFields(
-    //       uncompressedData,
-    //       determineDataRowLength(this._depth, this._colorType, this._width),
-    //       this._height
-    //     )
-    //   );
-    // } else {
-    //   // ?? merge
+
     defilter(uncompressedData, dataRowLength, bytesPerPixel);
     const pixelOnlyData = Uint8ClampedArray.from(
       removeFilterFields(
@@ -209,26 +147,10 @@ export default class IDAT extends Chunk {
         this._height
       )
     );
-      // pixelOnlyData = uncompressedData;
-    // }
-
-    // this._hold = pixelOnlyData;
-
-    // console.log('uncompressed data is now', uncompressedData);
-
-    // this._hold = pixelOnlyData;
-
-
-    // width / pixelsPerByte
-    // 32 / 4
-
-    // console.log('pixels only -->', pixelOnlyData);
 
     this._pixelData = Uint8ClampedArray.from(
       unpackByteData(pixelOnlyData, this._depth, !isIndexed(this._colorType))
     );
-
-    // console.log('= --->', this._pixelData);
   }
 
   setPixelOf(index, pixel) {
@@ -236,17 +158,13 @@ export default class IDAT extends Chunk {
       this._setSamples(index, pixel);
       return this;
     }
-    // pixel.forEach((sample, sampleIndex) => {
-    //   this._pixelData[index + sampleIndex] = sample;
-    // });
     this._setSingleValuePixel(index, pixel);
   }
 
   setAlpha(index, value) {
     if (!isGrayscaleWithAlpha(this._colorType) && !isTruecolorWithAlpha(this._colorType)) {
-        return;
+      return;
     }
-
     this._setAlpha(index, value);
   }
 
@@ -255,10 +173,6 @@ export default class IDAT extends Chunk {
   }
 
   applyZlibLib(lib) {
-    if (typeof lib.inflate !== 'function' || typeof lib.deflate !== 'function') {
-      throw new Error('zlib library is missing required methods');
-    }
-
     this._zlibLib = lib;
   }
 
@@ -318,25 +232,8 @@ export default class IDAT extends Chunk {
   }
 
   _setSingleValuePixel(index, value) {
-    // if (index >= this._numberOfPixels * this._pixelSize) {
-    //   console.log('problem index', index, value);
-    //   throw new Error('Index out of range for pixels');
-    // }
     this._pixelData[index] = value;
   }
-
-  // _setRgbPixel(index, pixel) {
-  //   this._pixelData[index++] = pixel[0]; // red
-  //   this._pixelData[index++] = pixel[1]; // green
-  //   this._pixelData[index++] = pixel[2]; // blue
-  // }
-
-  // _setRgbaPixel(index, pixel) {
-  //   this._pixelData[index++] = pixel[0]; // red
-  //   this._pixelData[index++] = pixel[1]; // green
-  //   this._pixelData[index++] = pixel[2]; // blue
-  //   this._pixelData[index++] = pixel[3]; // alpha
-  // }
 
   _setAlpha(index, value) {
     this._pixelData[index + 3] = value; // alpha

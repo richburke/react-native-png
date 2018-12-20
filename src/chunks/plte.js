@@ -15,9 +15,6 @@ export default class PLTE extends Chunk {
 
     this._maxNumberOfColors = options.maxNumberOfColors;
     this._palette = {};
-
-    // const chunkLength = this.calculateChunkLength();
-    // this.initialize(chunkLength);
   }
 
   set maxNumberOfColors(value) {
@@ -34,8 +31,6 @@ export default class PLTE extends Chunk {
 
     const sorted = Object.entries(this._palette).sort((a, b) => 
       unhashPixelIndexKey(a[0]) - unhashPixelIndexKey(b[0]));
-
-    // console.log('sorted -->', sorted);
 
     for (let i = 0; i < sorted.length; i++) {
       let rgb = sorted[i][1];
@@ -63,9 +58,6 @@ export default class PLTE extends Chunk {
       throw new Error('Invalid palette size supplied for PLTE chunk');
     }
 
-    // console.log('load PLTE', abuf)
-
-    // for (let i = 0; i < colorInfo.length; i += SAMPLES_PER_ENTRY) {
     for (let i = 0; i < paletteSize; i += SAMPLES_PER_ENTRY) {
       this.addColor([
         colorInfo[i],
@@ -73,8 +65,6 @@ export default class PLTE extends Chunk {
         colorInfo[i + 2],
       ]);
     }
-
-    // console.log('palette -->', paletteSize, this._palette);
 
     const chunkLength = this.calculateChunkLength();
     this.initialize(chunkLength);
@@ -99,21 +89,16 @@ export default class PLTE extends Chunk {
   }
 
   getPaletteIndex(colorData) {
-    // console.log('getIndexOf', colorData);
     const testColorKey = hashPixelData(colorData);
     const paletteEntries = Object.entries(this._palette);
 
-    // console.log('paletteEntries ->', testColorKey, paletteEntries);
-
-
+    /**
+     * @todo
+     * Replace with a for...of
+     */
     for (let j = 0; j < paletteEntries.length; j++) {
-      // console.log('getIndexOf ->', hashPixelData(paletteEntries[j][1]));
-
       if (testColorKey === hashPixelData(paletteEntries[j][1])) {
-        let x = unhashPixelIndexKey(paletteEntries[j][0]);
-        // console.log('found palette index', x);
-        return x;
-        // return unhashPixelIndexKey(paletteEntries[j][0]);
+        return unhashPixelIndexKey(paletteEntries[j][0]);
       }
     }
     return -1;
@@ -131,18 +116,10 @@ export default class PLTE extends Chunk {
     let pixelData = new Uint8ClampedArray(paletteIndices.length * 3);
     let n = 0;
 
-    // console.log('paletteEntries', paletteEntries);
-
-    // console.log('paletteIndices', paletteIndices)
-    // console.log(this.getPalette())
-
     for (let i = 0; i < paletteIndices.length; i++) {
       let paletteIndex = paletteIndices[i];
       let pixel = this.getColorOf(paletteIndex);
 
-      // console.log('found pixel', pixel);
-
-      // console.log('pixel', pixel);
       if ('undefined' === typeof pixel || !Array.isArray(pixel) || 3 !== pixel.length) {
         throw new Error(`Problem retrieving pixel data for palette index ${paletteIndex}`);
       }
@@ -155,13 +132,12 @@ export default class PLTE extends Chunk {
   }
 
   setColorOf(index, colorData) {
-    // console.log('setColorOf()', index, colorData);
-
     const hashedIndex = hashPixelIndexKey(index);
     if ('undefined' === typeof this._palette[hashedIndex]
       && this.getCurrentNumberOfColors() >= this._maxNumberOfColors) {
-        throw new Error('Maximum number of colors reached');
+      throw new Error('Maximum number of colors reached');
     }
+    
     this._palette[hashedIndex] = colorData;
     return index;
   }

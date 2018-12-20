@@ -191,8 +191,8 @@ const formatPixelsForColorType6 = (pixelData, numberOfValuesInLayout, width, hei
 
 export const formatPixels = (colorType, width, height, pixelLayout, pixelData, trnsData) => {
   const numberOfValuesInLayout = PixelLayouts.RGB === pixelLayout
-  ? 3
-  : 4;
+    ? 3
+    : 4;
   if (ColorTypes.GRAYSCALE === colorType) {
     return formatPixelsForColorType0(pixelData, trnsData, numberOfValuesInLayout);
   }

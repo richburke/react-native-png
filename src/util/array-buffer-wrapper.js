@@ -6,21 +6,19 @@ import {
   writeUint16At,
   writeUint32At,
 } from './typed-array';
-/**
- * @todo
- * Remove, when we remove asString
- */
-import { bv2str } from './string-arraybuffer';
 
 /**
  * @todo
- * - Remove asString()
  * - Update copyInto() & copyFrom()
  * - Finish conversion to using libs
  */
 export default class ArrayBufferWrapper {
-  _bufferView;
-  _offset;
+  /**
+   * @todo
+   * Do I need these?
+   */
+  // _bufferView;
+  // _offset;
 
   constructor(size, startingOffset = 0) {
     this._bufferView = new Uint8Array(new ArrayBuffer(size));
@@ -122,13 +120,5 @@ export default class ArrayBufferWrapper {
   stepOffset(step) {
     this._offset = this._offset + step;
     return this._offset;
-  }
-
-  /**
-   * @todo
-   * Remove, only for testing.
-   */
-  asString() {
-    return bv2str(this._bufferView);
   }
 }
