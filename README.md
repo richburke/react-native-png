@@ -347,9 +347,10 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 
 ### <a name="changelog">Changelog</a>
-1.0.0  
+_1.0.0_  
 Initial release.  Welcome to the world react-native-png!  
-1.0.1  
-* Added proper license.
+
+_1.0.1_  
+* Added a proper license.
 * Removed resources used for testing.
 * Updated documentation for proper version.
