@@ -1,9 +1,10 @@
 {
   "name": "react-native-png",
-  "version": "1.0.0",
-  "description": "Basic functionality for creating PNGs without HTML Canvas",
+  "version": "1.0.1",
+  "description": "Functionality for dynamically creating and modifying PNGs in React Native",
   "main": "index.js",
   "scripts": {
+    "prepublish": "yarn run lint && yarn run test",
     "test": "jest --verbose --coverage",
     "test:update": "jest --verbose --coverage --updateSnapshot",
     "test:watch": "jest --verbose --watch",
@@ -29,7 +30,7 @@
     "native"
   ],
   "author": "Rich Burke <rich.burke.dev@gmail.com>",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/richburke/react-native-png/issues"
   },
