@@ -19,7 +19,7 @@ export default class Prefix extends Chunk {
     return indexOfSequence(bufView, VERIFY_SEQUENCE, 0, this.calculateChunkLength()) !== -1;
   }
 
-  calculateChunkLength = () => {
+  calculateChunkLength() {
     return PREFIX.length;
   }
 }

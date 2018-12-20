@@ -158,59 +158,59 @@ const _loadChunk = (ctxt, chunkHeader, bufView) => {
   let chunks;
   let chunk;
   switch (chunkHeader) {
-    case 'IHDR':
-      chunk = _chunks.get(ctxt)[chunkHeader];
-      chunk.load(bufView);
-      _applyMetaData(ctxt, chunk.getMetaData());
-      break;
+  case 'IHDR':
+    chunk = _chunks.get(ctxt)[chunkHeader];
+    chunk.load(bufView);
+    _applyMetaData(ctxt, chunk.getMetaData());
+    break;
 
-    case 'tRNS':
-      chunks = _chunks.get(ctxt);
-      chunks.tRNS = new tRNS({
-        colorType: _colorType.get(ctxt),
-        numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
-        maxNumberOfColors: computeMaxNumberOfColors(_depth.get(ctxt)),
-      });
-      _chunks.set(ctxt, chunks);
-      chunk = _chunks.get(ctxt)[chunkHeader];
+  case 'tRNS':
+    chunks = _chunks.get(ctxt);
+    chunks.tRNS = new tRNS({
+      colorType: _colorType.get(ctxt),
+      numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
+      maxNumberOfColors: computeMaxNumberOfColors(_depth.get(ctxt)),
+    });
+    _chunks.set(ctxt, chunks);
+    chunk = _chunks.get(ctxt)[chunkHeader];
 
-      chunk.load(bufView);
-      break;
+    chunk.load(bufView);
+    break;
 
-    case 'PLTE':
-      chunks = _chunks.get(ctxt);
-      chunks.PLTE = new PLTE({
-        maxNumberOfColors: computeMaxNumberOfColors(_depth.get(ctxt)),
-      });
-      _chunks.set(ctxt, chunks);
-      chunk = _chunks.get(ctxt)[chunkHeader];
+  case 'PLTE':
+    chunks = _chunks.get(ctxt);
+    chunks.PLTE = new PLTE({
+      maxNumberOfColors: computeMaxNumberOfColors(_depth.get(ctxt)),
+    });
+    _chunks.set(ctxt, chunks);
+    chunk = _chunks.get(ctxt)[chunkHeader];
 
-      chunk.load(bufView);
-      break;
+    chunk.load(bufView);
+    break;
 
-    case 'bKGD':
-      chunks = _chunks.get(ctxt);
-      chunks.bKGD = new bKGD({
-        colorType: _colorType.get(ctxt),
-      });
-      _chunks.set(ctxt, chunks);
-      chunk = _chunks.get(ctxt)[chunkHeader];
-      chunk.load(bufView);
-      break;
+  case 'bKGD':
+    chunks = _chunks.get(ctxt);
+    chunks.bKGD = new bKGD({
+      colorType: _colorType.get(ctxt),
+    });
+    _chunks.set(ctxt, chunks);
+    chunk = _chunks.get(ctxt)[chunkHeader];
+    chunk.load(bufView);
+    break;
 
-    case 'IDAT':
-      chunk = _chunks.get(ctxt)[chunkHeader];
-      chunk.applyLayoutInformation({
-        width: _width.get(ctxt),
-        height: _height.get(ctxt),
-        depth: _depth.get(ctxt),
-        colorType: _colorType.get(ctxt),
-        numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
-      });
-      chunk.load(bufView);
-      break;
+  case 'IDAT':
+    chunk = _chunks.get(ctxt)[chunkHeader];
+    chunk.applyLayoutInformation({
+      width: _width.get(ctxt),
+      height: _height.get(ctxt),
+      depth: _depth.get(ctxt),
+      colorType: _colorType.get(ctxt),
+      numberOfPixels: computeNumberOfPixels(_width.get(ctxt), _height.get(ctxt)),
+    });
+    chunk.load(bufView);
+    break;
 
-    default:
+  default:
   }
 };
 
@@ -226,11 +226,7 @@ const _translateXyToIndex = (ctxt, x, y) => {
 
 export default class RnPng {
 
-  /**
-   * @todo
-   * Is this right?
-   */
-  static PixelLayout = PixelLayouts;
+  static get PixelLayout() { return PixelLayouts; }
 
   constructor(options = {}) {
     const width = options.width || 0;
@@ -251,10 +247,10 @@ export default class RnPng {
       filter,
       interlace,
     });
-    _zlibLib.set(this, zlibLib);
-    _buffer.set(this, null);
 
+    _buffer.set(this, null);
     _initializeChunks(this, this.getMetaData());
+    zlibLib && this.applyZlibLib(zlibLib);
   }
 
   get width() {
@@ -304,7 +300,7 @@ export default class RnPng {
       || !_chunks.get(this).IHDR.verify(bufView)
       || !_chunks.get(this).IDAT.verify(bufView)
       || !_chunks.get(this).IEND.verify(bufView)) {
-        throw new Error('Attempting to load data that is not a PNG');
+      throw new Error('Attempting to load data that is not a PNG');
     }
 
     // We may have created an empty PLTE chunk for the default color type.
@@ -388,13 +384,13 @@ export default class RnPng {
 
   getOpacities() {
     if (this.isGrayscaleWithAlpha() || this.isTruecolorWithAlpha()) {
-        const data = this.getData();
-        const numberOfSamples = determinePixelColorSize(_colorType.get(this)) + 1;
-        return data.reduce((acc, curr, ind) => {
-          return (ind + 1) % numberOfSamples === 0
-            ? acc.concat(curr)
-            : acc;
-        }, []);
+      const data = this.getData();
+      const numberOfSamples = determinePixelColorSize(_colorType.get(this)) + 1;
+      return data.reduce((acc, curr, ind) => {
+        return (ind + 1) % numberOfSamples === 0
+          ? acc.concat(curr)
+          : acc;
+      }, []);
     }
 
     let opacities = new Uint8ClampedArray(computeNumberOfPixels(
@@ -634,6 +630,7 @@ export default class RnPng {
     if (typeof lib.inflate !== 'function' || typeof lib.deflate !== 'function') {
       throw new Error('zlib library is missing required methods');
     }
+    _zlibLib.set(this, lib);
     _chunks.get(this).IDAT.applyZlibLib(lib);
     return this;
   }

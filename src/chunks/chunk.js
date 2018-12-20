@@ -6,10 +6,8 @@ export const CHUNK_HEADER_SIZE = 4;
 export const CHUNK_CRC32_SIZE = 4;
 
 export default class Chunk {
-  _abw;
-  _header;
-
   constructor(header) {
+    this._abw = null;
     this._header = header;
   }
 
@@ -56,9 +54,5 @@ export default class Chunk {
 
   isRequired() {
     return false;
-  }
-
-  asString() {
-    return this.buffer.asString();
   }
 }

@@ -39,7 +39,7 @@ const png = new RnPng({
   width: 10,
   height: 10,
   zlibLib: pako,
-}).setData([5, 5], [255, 0, 0]);
+}).setPixelAt([5, 5], [255, 0, 0]);
 const base64ImageData = base64js.fromByteArray(png.getBuffer());
 
 ...
@@ -278,8 +278,8 @@ Removes the bKGD chunk from the image.
 Applies the zlib library to be used for decompression/compression.  Before you can read or output an image buffer, you must set the zlib library.  That can be done via the constructor or via this method call.
 
 &nbsp;&nbsp;&nbsp;&nbsp;_Arguments_  
-&nbsp;&nbsp;&nbsp;&nbsp;`lib`: A library that handles the deccompression/compression of image data. The library must implement `inflate()` and `deflate()` methods, each of whose sole argument is the buffer data and whose output is modified buffer data.  
-&nbsp;&nbsp;&nbsp;&nbsp;The demos use the [`pako`](https://www.npmjs.com/package/pako) library.
+&nbsp;&nbsp;&nbsp;&nbsp;`lib`: A library that handles the deccompression/compression of image data. The library must implement `inflate()` and `deflate()` methods, each of whose sole argument is the buffer data and whose output is modified (decompressed or compressed) buffer data.  
+&nbsp;&nbsp;&nbsp;&nbsp;Examples and the demo app use the [`pako`](https://www.npmjs.com/package/pako) library.
 
 &nbsp;&nbsp;&nbsp;&nbsp;_Returns_  
 &nbsp;&nbsp;&nbsp;&nbsp;The `this` context
@@ -291,25 +291,25 @@ Returns a flag indicating whether or not the image is the indexed color type.
 &nbsp;&nbsp;&nbsp;&nbsp;A boolean  
 
 **isGrayscale()**  
-Returns a flag indicating whether or not the image one of the gray scale color types.
+Returns a flag indicating whether or not the image is one of the gray scale color types.
 
 &nbsp;&nbsp;&nbsp;&nbsp;_Returns_  
 &nbsp;&nbsp;&nbsp;&nbsp;A boolean  
 
 **isTruecolor**()  
-Returns a flag indicating whether or not the image one of the truecolor color types.
+Returns a flag indicating whether or not the image is one of the truecolor color types.
 
 &nbsp;&nbsp;&nbsp;&nbsp;_Returns_  
 &nbsp;&nbsp;&nbsp;&nbsp;A boolean  
 
 **isGrayscaleWithAlpha()**  
-Returns a flag indicating whether or not the image is the grayscale with alpha color type.
+Returns a flag indicating whether or not the image is the grayscale with opacity information color type.
 
 &nbsp;&nbsp;&nbsp;&nbsp;_Returns_  
 &nbsp;&nbsp;&nbsp;&nbsp;A boolean  
 
 **isTruecolorWithAlpha()**  
-Returns a flag indicating whether or not the image is the truecolor with alpha color type.
+Returns a flag indicating whether or not the image is the truecolor with opacity information color type.
 
 &nbsp;&nbsp;&nbsp;&nbsp;_Returns_  
 &nbsp;&nbsp;&nbsp;&nbsp;A boolean  
@@ -322,7 +322,7 @@ Returns a flag indicating whether or not the image has alpha (opacity) informati
 
 
 ### <a name="restrictions">Restrictions</a>
-* Image dimensions: the most limiting restriction for expected common use of this module is its inability to handle large images.  Image dimensions of 300x300 and lower should be okay.  Dimensions larger than that may affect performance.
+* Image dimensions: the most limiting restriction for expected common use of this module is its (in)ability to handle large images.  Image dimensions of 300x300 and lower should be okay.  Dimensions larger than that may affect performance.
 * The supported chunks are: IHDR, IDAT, PLTE, tRNS, bKGD, IEND.  That means other ancillary chunks are not supported.  In most cases those chunk types are irrelevant for the purpose of this library.  For information on chunk types, please see the listed reference material below.
 * Only handles images with a single IDAT chunk
 * Does not support reading or creation of interlaced images

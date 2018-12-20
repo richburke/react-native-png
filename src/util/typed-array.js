@@ -8,7 +8,7 @@ export const indexOfSequence = (bv, seq, start = 0, end = -1) => {
   const seqLength = seq.length;
 
   for (let i = start; i < limit; i++) {
-    searchIndex = bv.indexOf(seq[0], i);
+    const searchIndex = bv.indexOf(seq[0], i);
     if (searchIndex === -1) {
       continue;
     }
@@ -32,13 +32,13 @@ export const indexOfSequence = (bv, seq, start = 0, end = -1) => {
 export const writeUint8At = (buffer, offset, value) => {
   buffer[offset++] = value & 255;
   return offset;
-}
+};
 
 export const readUint8At = (buffer, offset) => {
   let newOffset = offset;
   const value = buffer[newOffset++] & 255;
   return value;
-}
+};
 
 export const writeUint16At = (buffer, offset, value, lsb = false) => {
   if (lsb) {
@@ -49,7 +49,7 @@ export const writeUint16At = (buffer, offset, value, lsb = false) => {
     buffer[offset++] = value & 255;
   }
   return offset;
-}
+};
 
 export const readUint16At = (buffer, offset, lsb = false) => {
   let value;
@@ -64,7 +64,7 @@ export const readUint16At = (buffer, offset, lsb = false) => {
   }
 
   return value;
-}
+};
 
 export const writeUint32At = (buffer, offset, value, lsb = false) => {
   if (lsb) {
@@ -80,7 +80,7 @@ export const writeUint32At = (buffer, offset, value, lsb = false) => {
   }
 
   return offset;
-}
+};
 
 export const readUint32At = (buffer, offset, lsb = false) => {
   let value;
@@ -99,7 +99,7 @@ export const readUint32At = (buffer, offset, lsb = false) => {
   }
 
   return value;
-}
+};
 
 const unpackDepth1Data = (packedData, translateValues) => {
   const values = [0, 255];
@@ -235,11 +235,11 @@ const packDepth2Data = (unpackedData, translateValues) => {
   let n = 0;
 
   while (i < unpackedData.length) {
-  let pixel1 = unpackedData[i++];
-  let pixel2 = unpackedData[i++];
-  let pixel3 = unpackedData[i++];
-  let pixel4 = unpackedData[i++];
-  let byte;
+    let pixel1 = unpackedData[i++];
+    let pixel2 = unpackedData[i++];
+    let pixel3 = unpackedData[i++];
+    let pixel4 = unpackedData[i++];
+    let byte;
 
     if (translateValues) {
       byte = values[pixel1] << 6;
